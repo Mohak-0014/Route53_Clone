@@ -1,0 +1,23 @@
+# Render Blueprint for the FastAPI backend.
+# Render dashboard → New → Blueprint → select this repo.
+services:
+  - type: web
+    name: route53-clone-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        value: sqlite:///./route53.db
+      # Allow the Vercel production + preview URLs. Set CORS_ORIGINS to your exact URL too.
+      - key: CORS_ORIGIN_REGEX
+        value: https://.*\.vercel\.app
+      - key: CORS_ORIGINS
+        value: http://localhost:3000
+      - key: DEMO_PASSWORD
+        value: demo1234

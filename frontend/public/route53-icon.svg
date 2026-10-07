@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="Route 53">
+  <defs>
+    <linearGradient id="g" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#4d27a8"/>
+      <stop offset="1" stop-color="#a166ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="40" height="40" rx="4" fill="url(#g)"/>
+  <path d="M20 7.5 30 11v8.2c0 6.3-4.2 11.3-10 13.3-5.8-2-10-7-10-13.3V11z" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/>
+  <text x="20" y="24" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="700" fill="#fff">53</text>
+</svg>

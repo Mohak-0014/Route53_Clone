@@ -1,0 +1,230 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Monospace values (IPs, record values), as in the Route 53 records table. */
+.r53-values {
+  white-space: pre-line;
+  word-break: break-all;
+}
+
+/* Sign-in page, modelled on the AWS IAM user sign-in. */
+.r53-login {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: #ffffff;
+  color: #16191f;
+  font-family: "Open Sans", "Helvetica Neue", Roboto, Arial, sans-serif;
+  font-size: 14px;
+}
+
+.r53-login-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 32px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.r53-login-main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 48px;
+  padding: 24px 16px 48px;
+  flex-wrap: wrap;
+}
+
+.r53-login-card {
+  width: 100%;
+  max-width: 380px;
+  box-sizing: border-box;
+  padding: 32px;
+  border: 1px solid #d5dbdb;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.r53-login-title {
+  margin: 0 0 20px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.r53-signin-button {
+  width: 100%;
+  padding: 9px 16px;
+  border: 1px solid #ff9900;
+  border-radius: 20px;
+  background: #ff9900;
+  color: #0f141a;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.r53-signin-button:hover:not(:disabled) {
+  background: #fa6f00;
+  border-color: #fa6f00;
+}
+
+.r53-signin-button:focus-visible {
+  outline: 2px solid #0972d3;
+  outline-offset: 2px;
+}
+
+.r53-signin-button:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+.r53-login-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #e9ebed;
+}
+
+.r53-link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0972d3;
+  font: inherit;
+  cursor: pointer;
+}
+
+.r53-link-button:hover {
+  text-decoration: underline;
+}
+
+.r53-login-aside {
+  width: 100%;
+  max-width: 380px;
+  padding: 32px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #232f3e 0%, #3b2a6b 100%);
+  color: #ffffff;
+}
+
+.r53-login-aside h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+}
+
+.r53-login-aside p {
+  margin: 0 0 24px;
+  line-height: 1.5;
+  color: #d1d5db;
+}
+
+.r53-login-demo {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.r53-login-demo dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 10px 0 0;
+}
+
+.r53-login-demo dt {
+  color: #b6bec9;
+}
+
+.r53-login-demo dd {
+  margin: 0;
+  font-family: Monaco, Menlo, Consolas, monospace;
+}
+
+.r53-login-footer {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #5f6b7a;
+  border-top: 1px solid #e9ebed;
+}
+
+.awsui-dark-mode .r53-login,
+.awsui-dark-mode .r53-login-card {
+  background: #0f1b2a;
+  color: #d1d5db;
+}
+
+.awsui-dark-mode .r53-login-card {
+  border-color: #414d5c;
+}
+
+.r53-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
+
+/* Top bar: Services menu + console search, as in the AWS console header. */
+.r53-top-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 640px;
+}
+
+/* Cloudscape caps the top-navigation search slot at 340px; the AWS console's is wider. */
+[class*="awsui_search_"]:has(> .r53-top-search) {
+  max-width: 600px !important;
+  flex-grow: 1 !important;
+}
+
+.r53-top-search > :first-child {
+  flex: none;
+  white-space: nowrap;
+}
+
+.r53-console-search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.r53-console-search-hint {
+  position: absolute;
+  right: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  font: inherit;
+  font-size: 12px;
+  color: #8d99a8;
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .r53-console-search-hint {
+    display: none;
+  }
+}
+
+/* "Status: PENDING / INSYNC" line inside change flash messages */
+.r53-change-status {
+  margin-top: 2px;
+}
+
+/* The status icon and label take the flash's text colour (grey/green vanish on green). */
+.r53-change-status * {
+  color: inherit !important;
+  font-weight: 700;
+}

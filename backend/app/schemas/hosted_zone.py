@@ -1,7 +1,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.common import UTCDateTime
 from app.services.validators import validate_zone_name
@@ -40,8 +40,26 @@ class HostedZoneCreate(BaseModel):
 
 
 class HostedZoneUpdate(BaseModel):
-    # Route 53 only allows editing the description (comment) of an existing zone.
+    """Route 53 only allows changing a hosted zone's description (comment).
+
+    Any other field (name, type, VPC settings) is rejected rather than silently ignored.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     comment: str = Field(..., max_length=256)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _only_comment(cls, data):
+        if isinstance(data, dict):
+            immutable = sorted(k for k in data if k != "comment")
+            if immutable:
+                raise ValueError(
+                    "Only the description of a hosted zone can be changed. "
+                    f"These fields can't be updated: {', '.join(immutable)}."
+                )
+        return data
 
 
 class HostedZoneOut(BaseModel):

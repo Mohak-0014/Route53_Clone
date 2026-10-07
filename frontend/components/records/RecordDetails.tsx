@@ -5,6 +5,7 @@ import Button from "@cloudscape-design/components/button";
 import KeyValuePairs from "@cloudscape-design/components/key-value-pairs";
 import SpaceBetween from "@cloudscape-design/components/space-between";
 import { formatDate } from "@/lib/format";
+import { RecordValues } from "./RecordValues";
 import type { DnsRecord } from "@/types";
 
 /** Content of the "Record details" split panel shown when one record is selected. */
@@ -34,7 +35,7 @@ export function RecordDetails({
             label: "Value",
             value: (
               <Box variant="code" fontSize="body-s">
-                <span className="r53-values">{record.values.join("\n")}</span>
+                <RecordValues values={record.values} />
               </Box>
             ),
           },

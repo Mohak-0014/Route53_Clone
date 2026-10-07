@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@cloudscape-design/components/alert";
 import Box from "@cloudscape-design/components/box";
@@ -23,6 +23,7 @@ import { DnsRecord, HostedZone, RECORD_TYPES } from "@/types";
 import { DeleteRecordsModal } from "./DeleteRecordsModal";
 import { ImportZoneFileModal } from "./ImportZoneFileModal";
 import { RecordDetails } from "./RecordDetails";
+import { RecordValues } from "./RecordValues";
 
 const FILTER_TYPES = [...RECORD_TYPES, "SOA"].sort();
 const TYPE_OPTIONS: SelectProps.Option[] = [
@@ -30,7 +31,8 @@ const TYPE_OPTIONS: SelectProps.Option[] = [
   ...FILTER_TYPES.map((t) => ({ label: t, value: t })),
 ];
 const PAGE_SIZES = [10, 25, 50, 100];
-const DEFAULT_COLUMNS = ["name", "type", "routing", "differentiator", "alias", "value", "ttl"];
+// Differentiator is always "-" with simple routing, so it starts hidden (available in Preferences).
+const DEFAULT_COLUMNS = ["name", "type", "routing", "alias", "value", "ttl"];
 
 export function RecordsTable({ zone, onChanged }: { zone: HostedZone; onChanged: () => void }) {
   const router = useRouter();
@@ -55,7 +57,10 @@ export function RecordsTable({ zone, onChanged }: { zone: HostedZone; onChanged:
   // Create/Edit pages return to this exact view (search, filter, page) on Save or Cancel.
   const back = queryString ? `?back=${encodeURIComponent(queryString)}` : "";
 
-  const editHref = (r: DnsRecord) => `/hosted-zones/${zone.id}/records/${r.id}/edit${back}`;
+  const editHref = useCallback(
+    (r: DnsRecord) => `/hosted-zones/${zone.id}/records/${r.id}/edit${back}`,
+    [zone.id, back],
+  );
   const createHref = `/hosted-zones/${zone.id}/records/create${back}`;
 
   // One selected record → "Record details" split panel, as in the Route 53 console.
@@ -63,11 +68,15 @@ export function RecordsTable({ zone, onChanged }: { zone: HostedZone; onChanged:
   useEffect(() => {
     setSplitPanel(
       single
-        ? { header: "Record details", content: <RecordDetails record={single} onEdit={() => router.push(editHref(single))} deniedReason={deniedReason} /> }
+        ? {
+            header: "Record details",
+            content: (
+              <RecordDetails record={single} onEdit={() => router.push(editHref(single))} deniedReason={deniedReason} />
+            ),
+          }
         : null,
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [single, setSplitPanel]);
+  }, [single, setSplitPanel, router, editHref, deniedReason]);
   useEffect(() => () => setSplitPanel(null), [setSplitPanel]);
 
   const refreshAll = () => {
@@ -88,21 +97,30 @@ export function RecordsTable({ zone, onChanged }: { zone: HostedZone; onChanged:
   const isFiltering = !!search || !!type;
 
   const columns: TableProps.ColumnDefinition<DnsRecord>[] = [
-    { id: "name", header: "Record name", cell: (r) => r.name, isRowHeader: true, minWidth: 180 },
-    { id: "type", header: "Type", cell: (r) => r.type },
-    { id: "routing", header: "Routing policy", cell: () => "Simple" },
-    { id: "differentiator", header: "Differentiator", cell: () => "-" },
-    { id: "alias", header: "Alias", cell: (r) => (r.alias ? "Yes" : "No") },
+    // Widths keep name, type, routing, alias, value and TTL on screen at 1440px with the side nav open.
+    {
+      id: "name",
+      header: "Record name",
+      cell: (r) => <RecordValues values={[r.name]} />,
+      isRowHeader: true,
+      width: 220,
+      minWidth: 160,
+    },
+    { id: "type", header: "Type", cell: (r) => r.type, width: 80, minWidth: 70 },
+    { id: "routing", header: "Routing policy", cell: () => "Simple", width: 130, minWidth: 110 },
+    { id: "differentiator", header: "Differentiator", cell: () => "-", width: 130 },
+    { id: "alias", header: "Alias", cell: (r) => (r.alias ? "Yes" : "No"), width: 80, minWidth: 70 },
     {
       id: "value",
       header: "Value/Route traffic to",
-      cell: (r) => <span className="r53-values">{r.values.join("\n")}</span>,
-      minWidth: 260,
+      cell: (r) => <RecordValues values={r.values} />,
+      width: 360,
+      minWidth: 220,
     },
-    { id: "ttl", header: "TTL (seconds)", cell: (r) => r.ttl },
-    { id: "healthCheck", header: "Health check ID", cell: () => "-" },
-    { id: "evaluate", header: "Evaluate target health", cell: () => "-" },
-    { id: "recordId", header: "Record ID", cell: (r) => r.id },
+    { id: "ttl", header: "TTL (seconds)", cell: (r) => r.ttl, width: 120, minWidth: 110 },
+    { id: "healthCheck", header: "Health check ID", cell: () => "-", width: 150 },
+    { id: "evaluate", header: "Evaluate target health", cell: () => "-", width: 180 },
+    { id: "recordId", header: "Record ID", cell: (r) => r.id, width: 200 },
   ];
   const columnDisplay = columns.map((c) => ({ id: c.id!, visible: visibleColumns.includes(c.id!) }));
 

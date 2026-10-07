@@ -1,3 +1,5 @@
+import pytest
+
 def test_create_zone_normalizes_and_adds_defaults(client, auth, zone):
     assert zone["name"] == "test.example"
     assert zone["id"].startswith("Z")
@@ -88,3 +90,25 @@ def test_export(client, auth, zone):
     js = client.get(f"/api/hosted-zones/{zid}/export?format=json", headers=auth).json()
     assert js["HostedZone"]["Name"] == "test.example."
     assert any(r["Type"] == "MX" for r in js["ResourceRecordSets"])
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"comment": "x", "name": "other.example"},
+        {"comment": "x", "type": "private"},
+        {"comment": "x", "vpc_id": "vpc-0a1b2c3d", "vpc_region": "us-east-1"},
+        {"name": "other.example"},
+    ],
+)
+def test_update_rejects_immutable_fields(client, auth, zone, body):
+    r = client.put(f"/api/hosted-zones/{zone['id']}", json=body, headers=auth)
+    assert r.status_code == 422
+    err = r.json()
+    assert err["code"] == "InvalidInput"
+    assert err["message"].startswith("Only the description of a hosted zone can be changed.")
+    for field in body.keys() - {"comment"}:
+        assert field in err["message"]
+    # Nothing changed.
+    got = client.get(f"/api/hosted-zones/{zone['id']}", headers=auth).json()
+    assert (got["name"], got["type"], got["comment"]) == (zone["name"], zone["type"], zone["comment"])

@@ -10,6 +10,7 @@ import Table from "@cloudscape-design/components/table";
 import { useNotifications } from "@/components/providers/NotificationsProvider";
 import { api, errorMessage } from "@/lib/api";
 import type { DnsRecord } from "@/types";
+import { RecordValues } from "./RecordValues";
 
 export function DeleteRecordsModal({
   zoneId,
@@ -93,7 +94,7 @@ export function DeleteRecordsModal({
               columnDefinitions={[
                 { id: "name", header: "Record name", cell: (r) => r.name },
                 { id: "type", header: "Type", cell: (r) => r.type },
-                { id: "value", header: "Value", cell: (r) => <span className="r53-values">{r.values.join("\n")}</span> },
+                { id: "value", header: "Value", cell: (r) => <RecordValues values={r.values} /> },
               ]}
             />
           </>

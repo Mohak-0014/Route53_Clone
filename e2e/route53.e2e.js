@@ -41,11 +41,11 @@ function check(cond, msg) {
   check(await page.getByText("Account ID is required.").isVisible(), "Login form shows required-field errors");
   await page.getByLabel("Account ID (12 digits) or account alias").fill("123456789012");
   await page.getByLabel("IAM username").fill("demo");
-  await page.getByLabel("Password").fill("wrong");
+  await page.getByLabel("Password", { exact: true }).fill("wrong");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.getByText("Your authentication information is incorrect").filter({ visible: true }).first().waitFor();
   check(true, "Wrong password shows error");
-  await page.getByLabel("Password").fill("demo1234");
+  await page.getByLabel("Password", { exact: true }).fill("demo1234");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL(/\/hosted-zones$/);
   await page.getByRole("heading", { name: /Hosted zones/ }).filter({ visible: true }).first().waitFor();
@@ -544,7 +544,7 @@ function check(cond, msg) {
   await page.getByLabel("Account ID (12 digits) or account alias").fill("123456789012");
   await page.getByText("Remember this account").click();
   await page.getByLabel("IAM username").fill("demo");
-  await page.getByLabel("Password").fill("demo1234");
+  await page.getByLabel("Password", { exact: true }).fill("demo1234");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL(/\/hosted-zones$/);
   await page.getByRole("button", { name: /demo @/ }).click();
@@ -562,7 +562,7 @@ function check(cond, msg) {
       loc.filter({ visible: true }).first().evaluate((el) => el.hasAttribute("disabled") || el.getAttribute("aria-disabled") === "true");
     const action = (name) => page.getByRole("button", { name, exact: true }).or(page.getByRole("link", { name, exact: true }));
     await page.getByLabel("IAM username").fill("viewer");
-    await page.getByLabel("Password").fill("viewer1234");
+    await page.getByLabel("Password", { exact: true }).fill("viewer1234");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL(/\/hosted-zones$/);
     await page.getByRole("link", { name: "example.com", exact: true }).filter({ visible: true }).first().waitFor();
@@ -597,7 +597,7 @@ function check(cond, msg) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel("Account ID (12 digits) or account alias").fill("123456789012");
   await page.getByLabel("IAM username").fill("demo");
-  await page.getByLabel("Password").fill("demo1234");
+  await page.getByLabel("Password", { exact: true }).fill("demo1234");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL(/\/hosted-zones$/);
   await page.waitForTimeout(800);

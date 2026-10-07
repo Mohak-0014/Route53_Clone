@@ -46,21 +46,43 @@ function buildUrl(path: string, query?: Query) {
   return url.toString();
 }
 
-async function request<T>(method: string, path: string, opts: { query?: Query; body?: unknown; raw?: boolean } = {}) {
+/**
+ * The demo API runs on a free tier that sleeps when idle; waking it can take ~50 s, so
+ * requests wait up to 70 s before giving up with a clear "Timeout" error.
+ */
+export const REQUEST_TIMEOUT_MS = 70_000;
+
+async function request<T>(
+  method: string,
+  path: string,
+  opts: { query?: Query; body?: unknown; raw?: boolean; timeoutMs?: number } = {},
+) {
   const headers: Record<string, string> = {};
   const token = tokenStore.get();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
   let res: Response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? REQUEST_TIMEOUT_MS);
   try {
     res = await fetch(buildUrl(path, opts.query), {
       method,
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: controller.signal,
     });
   } catch {
+    if (controller.signal.aborted) {
+      throw new ApiError(
+        0,
+        "Timeout",
+        "The demo server didn't respond in time. It may still be starting up; please try again.",
+      );
+    }
     throw new ApiError(0, "NetworkError", "Unable to reach the Route 53 API. Check your connection and try again.");
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok) {
@@ -89,6 +111,10 @@ export interface ListParams {
 }
 
 export const api = {
+  /** Fire-and-forget request that starts waking a sleeping demo server (e.g. while the user types). */
+  warmUp: () => {
+    fetch(buildUrl("/api/health")).catch(() => undefined);
+  },
   auth: {
     login: (account_id: string, username: string, password: string) =>
       request<SessionInfo>("POST", "/api/auth/login", { body: { account_id, username, password } }),

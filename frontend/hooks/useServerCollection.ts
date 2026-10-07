@@ -115,53 +115,62 @@ export function useServerCollection<T extends { id: string }, F extends string>(
   const result = useApiQuery(() => fetchPage(query), [queryString, depsKey]);
   const { data } = result;
 
-  // --- URL sync: state → URL (replace, so typing doesn't add history entries)
+  // --- Two-way URL sync, in one effect so each run knows which side changed:
+  //  * a new URL (back/forward, a shared link, the top-bar search) is applied to state,
+  //    unless it is one of our own writes arriving back;
+  //  * new state is written with router.replace, so typing doesn't add history entries.
   const written = useRef(new Set<string>());
+  const lastUrl = useRef(urlQs);
+  const lastQuery = useRef<string | null>(null);
+  const { syncUrl } = opts;
   useEffect(() => {
-    if (!opts.syncUrl) return;
-    // Compare with the raw URL so invalid or non-canonical params are rewritten too.
-    if (urlQs === queryString) return;
-    if (written.current.size > 20) written.current.clear();
-    written.current.add(queryString);
-    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
-    // Only our own state should trigger a write; URL changes are handled below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryString]);
-
-  // --- URL sync: URL → state (back/forward, shared links, links from elsewhere)
-  useEffect(() => {
-    if (!opts.syncUrl) return;
-    const parsed = parseQuery(new URLSearchParams(urlQs), optsRef.current);
-    const incoming = collectionQueryString(parsed, optsRef.current.defaultPageSize);
-    if (written.current.has(incoming)) {
-      written.current.delete(incoming); // our own write arriving back
-      return;
+    if (!syncUrl) return;
+    if (urlQs !== lastUrl.current) {
+      lastUrl.current = urlQs;
+      const parsed = parseQuery(new URLSearchParams(urlQs), optsRef.current);
+      const incoming = collectionQueryString(parsed, optsRef.current.defaultPageSize);
+      if (written.current.has(incoming)) {
+        written.current.delete(incoming);
+      } else {
+        clearTimeout(debounce.current);
+        setFilterTextRaw(parsed.search);
+        setSearch(parsed.search);
+        setFilters(parsed.filters);
+        setPage(parsed.page);
+        setPageSizeRaw(parsed.pageSize);
+        lastQuery.current = incoming; // state matches this URL after the next render
+        return;
+      }
     }
-    clearTimeout(debounce.current);
-    setFilterTextRaw(parsed.search);
-    setSearch(parsed.search);
-    setFilters(parsed.filters);
-    setPage(parsed.page);
-    setPageSizeRaw(parsed.pageSize);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlQs]);
+    if (queryString !== lastQuery.current) {
+      lastQuery.current = queryString;
+      // Compare with the raw URL so invalid or non-canonical params are rewritten too.
+      if (urlQs !== queryString) {
+        if (written.current.size > 20) written.current.clear();
+        written.current.add(queryString);
+        router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+      }
+    }
+  }, [syncUrl, urlQs, queryString, router, pathname]);
 
   // A new query is a new result set: start a fresh selection, even if the user clicked
   // rows while the request was in flight. A plain reload keeps the selection in sync.
   const resultKey = `${queryString}|${depsKey}`;
   useEffect(() => setSelected([]), [resultKey]);
+  // Read through a ref: the check must run when *data* arrives, not when the query changes.
+  const currentKey = useRef(resultKey);
+  currentKey.current = resultKey;
   const dataKey = useRef(resultKey);
   useEffect(() => {
     if (!data) return;
-    if (dataKey.current !== resultKey) {
-      dataKey.current = resultKey;
+    if (dataKey.current !== currentKey.current) {
+      dataKey.current = currentKey.current;
       setSelected([]);
     } else {
       setSelected((sel) => sel.map((s) => data.items.find((i) => i.id === s.id)).filter((i): i is T => !!i));
     }
     // Step back if a delete emptied the last page (or a shared link pointed past the end).
     if (data.page > data.total_pages) setPage(data.total_pages);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   // "/" focuses the filter, like many AWS consoles.

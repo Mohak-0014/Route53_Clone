@@ -7,18 +7,25 @@ body {
 /* Monospace values (IPs, record values), as in the Route 53 records table. */
 .r53-values {
   white-space: pre-line;
-  word-break: break-all;
+  /* Break between words (and after dots, see RecordValues); split a token only if nothing else fits. */
+  overflow-wrap: break-word;
 }
 
-/* Sign-in page, modelled on the AWS IAM user sign-in. */
+.r53-value-line {
+  display: block;
+}
+
+/* Sign-in page, modelled on the AWS IAM user sign-in. Cards are Cloudscape Containers, so they
+   follow light/dark mode; page colours use Cloudscape's theme variables (the suffix is part of
+   the installed Cloudscape version's variable name; the fallbacks are the light-theme values). */
 .r53-login {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  background: #ffffff;
-  color: #16191f;
-  font-family: "Open Sans", "Helvetica Neue", Roboto, Arial, sans-serif;
+  background: var(--color-background-layout-main-y4565g, #ffffff);
+  color: var(--color-text-body-default-b2us04, #0f141a);
+  font-family: var(--font-family-base-c9u5cr, "Open Sans", "Helvetica Neue", Roboto, Arial, sans-serif);
   font-size: 14px;
 }
 
@@ -36,29 +43,22 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  gap: 48px;
+  gap: 32px;
   padding: 24px 16px 48px;
-  flex-wrap: wrap;
+  flex-wrap: wrap; /* the two cards stack on narrow screens */
 }
 
 .r53-login-card {
   width: 100%;
-  max-width: 380px;
-  box-sizing: border-box;
-  padding: 32px;
-  border: 1px solid #d5dbdb;
-  border-radius: 16px;
-  background: #ffffff;
+  max-width: 400px;
 }
 
-.r53-login-title {
-  margin: 0 0 20px;
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.25;
-}
-
+/* AWS sign-in uses its orange call-to-action in both themes. */
 .r53-signin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
   padding: 9px 16px;
   border: 1px solid #ff9900;
@@ -81,91 +81,25 @@ body {
 }
 
 .r53-signin-button:disabled {
-  opacity: 0.7;
+  opacity: 0.75;
   cursor: progress;
 }
 
 .r53-login-links {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid #e9ebed;
+  border-top: 1px solid var(--color-border-divider-default-diwd4w, #c6c6cd);
 }
 
-.r53-link-button {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: #0972d3;
-  font: inherit;
-  cursor: pointer;
-}
-
-.r53-link-button:hover {
-  text-decoration: underline;
-}
-
-.r53-login-aside {
-  width: 100%;
-  max-width: 380px;
-  padding: 32px;
-  box-sizing: border-box;
-  border-radius: 16px;
-  background: linear-gradient(160deg, #232f3e 0%, #3b2a6b 100%);
-  color: #ffffff;
-}
-
-.r53-login-aside h2 {
-  margin: 0 0 12px;
-  font-size: 22px;
-}
-
-.r53-login-aside p {
-  margin: 0 0 24px;
-  line-height: 1.5;
-  color: #d1d5db;
-}
-
-.r53-login-demo {
-  padding: 16px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.r53-login-demo dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 6px 16px;
-  margin: 10px 0 0;
-}
-
-.r53-login-demo dt {
-  color: #b6bec9;
-}
-
-.r53-login-demo dd {
-  margin: 0;
-  font-family: Monaco, Menlo, Consolas, monospace;
+/* Demo value + copy button on one line. */
+.r53-copyable {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .r53-login-footer {
   padding: 16px;
-  text-align: center;
-  font-size: 12px;
-  color: #5f6b7a;
-  border-top: 1px solid #e9ebed;
-}
-
-.awsui-dark-mode .r53-login,
-.awsui-dark-mode .r53-login-card {
-  background: #0f1b2a;
-  color: #d1d5db;
-}
-
-.awsui-dark-mode .r53-login-card {
-  border-color: #414d5c;
+  border-top: 1px solid var(--color-border-divider-default-diwd4w, #c6c6cd);
 }
 
 .r53-center {
@@ -175,24 +109,10 @@ body {
   min-height: 60vh;
 }
 
-/* Top bar: Services menu + console search, as in the AWS console header. */
-.r53-top-search {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  max-width: 640px;
-}
-
 /* Cloudscape caps the top-navigation search slot at 340px; the AWS console's is wider. */
-[class*="awsui_search_"]:has(> .r53-top-search) {
-  max-width: 600px !important;
+[class*="awsui_search_"]:has(> .r53-console-search) {
+  max-width: 440px !important;
   flex-grow: 1 !important;
-}
-
-.r53-top-search > :first-child {
-  flex: none;
-  white-space: nowrap;
 }
 
 .r53-console-search {

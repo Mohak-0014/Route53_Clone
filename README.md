@@ -184,7 +184,7 @@ erDiagram
         string id PK
         string hosted_zone_id FK "ON DELETE CASCADE"
         string name "FQDN"
-        string record_type
+        string record_type "exposed in the API as type"
         int ttl
         text values_json "JSON array of values"
         string routing_policy "simple"
@@ -205,6 +205,7 @@ erDiagram
 ```
 
 Design notes
+- **Column vs. API names.** The record type is stored in the `record_type` column (avoiding the generic `type`), and the API exposes it as `type` in requests and responses, e.g. `{"name":"www","type":"A","ttl":300,"values":["192.0.2.1"]}`.
 - **Record sets, not single records.** Route 53 groups all values for a (name, type) pair into one *resource record set* (e.g. an A record with three IPs). The table mirrors that: one row per (zone, name, type), values stored as a JSON array. A `UNIQUE(hosted_zone_id, name, record_type)` constraint enforces it. Value search uses SQLite's `json_each`, so each value is matched as plain text rather than its JSON encoding.
 - **Referential integrity.** `PRAGMA foreign_keys=ON` is set on every connection; deleting a zone cascades to its records and its change history.
 - **Change history.** Every record create, update, delete, bulk delete and zone-file import writes one `changes` row in the *same transaction* as the data change, so history can never disagree with the data. Status is derived, not stored: `PENDING` until `PROPAGATION_SECONDS` have passed since `submitted_at`, then `INSYNC`. Seed data and no-op requests (e.g. a bulk delete that deletes nothing) record no change. An index on `(hosted_zone_id, submitted_at)` serves the newest-first history query.
@@ -230,7 +231,7 @@ All endpoints except `/api/auth/login` and `/api/health` need `Authorization: Be
 | GET | `/api/hosted-zones?search=&type=&page=&page_size=` | List zones (paginated) |
 | POST | `/api/hosted-zones` | Create zone (+ default NS/SOA) |
 | GET | `/api/hosted-zones/{zone_id}` | Get zone |
-| PUT | `/api/hosted-zones/{zone_id}` | Update description |
+| PUT | `/api/hosted-zones/{zone_id}` | Update the description `{comment}`, the only mutable field, as in Route 53. Sending `name`, `type`, `vpc_id` or `vpc_region` returns `422 InvalidInput` ("Only the description of a hosted zone can be changed.") |
 | DELETE | `/api/hosted-zones/{zone_id}` | Delete (400 `HostedZoneNotEmpty` if it has records) |
 | GET | `/api/hosted-zones/{zone_id}/export?format=bind\|json` | Export zone |
 | POST | `/api/hosted-zones/{zone_id}/test-record` | Simulated DNS answer `{record_name, type}` → `{response_code, answers, authority, notes}` |
@@ -265,8 +266,12 @@ Example:
 TOKEN=$(curl -s -X POST localhost:8000/api/auth/login -H 'Content-Type: application/json' \
   -d '{"account_id":"123456789012","username":"demo","password":"demo1234"}' | jq -r .token)
 
-curl -s -X POST localhost:8000/api/hosted-zones -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' -d '{"name":"example.net","comment":"test"}'
+ZONE=$(curl -s -X POST localhost:8000/api/hosted-zones -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"example.net","comment":"test"}' | jq -r .id)
+
+# Create a record: the record type is sent as "type"
+curl -s -X POST localhost:8000/api/hosted-zones/$ZONE/records -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"www","type":"A","ttl":300,"values":["192.0.2.1"]}'
 ```
 
 ---
@@ -303,7 +308,7 @@ Production build: `npm run build && npm start`.
 
 ### Tests
 ```bash
-# Backend: 81 API tests (auth, IAM roles, CRUD, every record type, validation, conflicts, batches, search, pagination,
+# Backend: 85 API tests (auth, IAM roles, CRUD, every record type, validation, conflicts, batches, search, pagination,
 #          import/export, Test record resolution rules, optimistic locking + migration, change history)
 cd backend && pip install -r requirements-dev.txt && pytest -q
 
@@ -344,7 +349,10 @@ The hosted demo runs the API on **Render** and the frontend on **Vercel**.
 2. **Frontend → Vercel.** *Add New Project* → import the repo → **Root Directory: `frontend`** → env var `NEXT_PUBLIC_API_URL=<Render URL>` → Deploy.
 3. **CORS.** The blueprint already allows `https://*.vercel.app` via `CORS_ORIGIN_REGEX`. For a custom domain, add it to `CORS_ORIGINS` on Render.
 
-Notes: Render's free tier sleeps after inactivity (first request can take ~50 s) and its disk is ephemeral, so the SQLite file is re-seeded after a redeploy. For durable data attach a Render persistent disk and point `DATABASE_URL` at it (e.g. `sqlite:////var/data/route53.db`).
+### Hosting notes
+
+- **Cold start.** Render's free tier stops the API after a period of inactivity; the first request afterwards can take ~50 s while it starts. The UI accounts for this: the sign-in page pings `/api/health` as soon as it loads so the server starts waking while you type, shows *"Starting the demo server…"* if sign-in takes longer than 4 s, and API calls time out after 70 s with a clear error and a **Retry** action. Opening a console page directly shows the same note while the session is restored.
+- **Ephemeral disk.** The free instance's disk is not persistent, so the SQLite database is recreated and re-seeded with the demo data whenever the service restarts or redeploys; changes made on the live demo don't survive that. For durable data, attach a Render persistent disk and point `DATABASE_URL` at it (e.g. `sqlite:////var/data/route53.db`).
 
 ---
 
@@ -354,6 +362,7 @@ Notes: Render's free tier sleeps after inactivity (first request can take ~50 s)
 - **Router → service → model layering.** Routers stay thin; all Route 53 rules live in services, so they are testable and reused by seeding and import.
 - **Server-side search, filtering and pagination** — the browser never downloads whole tables.
 - **Mock auth that behaves like real auth.** Hashed password, random opaque tokens in a sessions table with expiry, server-side logout. Swapping in Cognito/IAM Identity Center would only replace `auth_service` and the login page.
+- **Deliberate auth simplifications.** The session token is kept in `localStorage` as a simplification for mocked auth; a production deployment would use an httpOnly, Secure, SameSite cookie instead, so scripts can't read the token. Login isn't rate-limited because authentication is mocked; production would add rate limiting and account lockout on repeated failures.
 - **Validation in two places.** Client checks give instant feedback; Pydantic + the service layer are authoritative.
 - **Not implemented on purpose:** real DNS serving, alias records, non-simple routing policies, health checks, DNSSEC, tags (shown as placeholders).
 

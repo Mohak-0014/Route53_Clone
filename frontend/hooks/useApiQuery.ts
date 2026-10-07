@@ -6,33 +6,36 @@ import { errorMessage } from "@/lib/api";
 /**
  * Minimal data-fetching hook. Keeps the previous data while refetching
  * (so tables don't flash empty on pagination) and ignores stale responses.
+ * `deps` are the (serialisable) values that decide when to refetch; the latest
+ * `fetcher` is always the one called.
  */
-export function useApiQuery<T>(fetcher: () => Promise<T>, deps: React.DependencyList) {
+export function useApiQuery<T>(fetcher: () => Promise<T>, deps: readonly (string | number | boolean | null | undefined)[]) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const run = useCallback(fetcher, deps);
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
+  const depsKey = JSON.stringify(deps);
 
   const reload = useCallback(async () => {
     const id = ++requestId.current;
     setLoading(true);
     setError(null);
     try {
-      const result = await run();
+      const result = await fetcherRef.current();
       if (id === requestId.current) setData(result);
     } catch (e) {
       if (id === requestId.current) setError(errorMessage(e));
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [run]);
+  }, []);
 
   useEffect(() => {
     reload();
-  }, [reload]);
+  }, [depsKey, reload]);
 
   return { data, loading, error, reload, setData };
 }

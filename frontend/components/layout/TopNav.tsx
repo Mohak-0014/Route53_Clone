@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import ButtonDropdown, { ButtonDropdownProps } from "@cloudscape-design/components/button-dropdown";
+import type { ButtonDropdownProps } from "@cloudscape-design/components/button-dropdown";
 import TopNavigation from "@cloudscape-design/components/top-navigation";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useNotifications } from "@/components/providers/NotificationsProvider";
@@ -52,33 +52,31 @@ export function TopNav({ onShowShortcuts }: { onShowShortcuts: () => void }) {
     <TopNavigation
       identity={{
         href: "/hosted-zones",
-        title: "",
-        logo: { src: "/route53-icon.svg", alt: "Route 53" },
+        title: "Console",
+        logo: { src: "/console-icon.svg", alt: "" },
         onFollow: (e) => {
           e.preventDefault();
           router.push("/hosted-zones");
         },
       }}
-      search={
-        <div className="r53-top-search">
-          <ButtonDropdown
-            items={SERVICES}
-            onItemClick={({ detail }) => {
-              if (detail.href) router.push(detail.href);
-            }}
-            onItemFollow={({ detail, preventDefault }) => {
-              preventDefault();
-              if (detail.href) router.push(detail.href);
-            }}
-            ariaLabel="Services"
-            expandToViewport
-          >
-            Services
-          </ButtonDropdown>
-          <ConsoleSearch />
-        </div>
-      }
+      search={<ConsoleSearch />}
       utilities={[
+        {
+          // The AWS console's "Services" menu: a plain top-bar control with the grid icon.
+          type: "menu-dropdown",
+          text: "Services",
+          iconName: "grid-view",
+          disableTextCollapse: true,
+          ariaLabel: "Services",
+          items: SERVICES,
+          onItemFollow: (event) => {
+            const href = event.detail.href;
+            if (href && href.startsWith("/")) {
+              event.preventDefault();
+              router.push(href);
+            }
+          },
+        },
         {
           type: "menu-dropdown",
           iconName: "script",

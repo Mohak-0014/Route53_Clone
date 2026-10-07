@@ -94,12 +94,15 @@ function check(cond, msg) {
   await page.getByRole("tab", { name: "Records (2)" }).filter({ visible: true }).first().waitFor();
   check(true, "New zone has default NS + SOA records");
 
-  // Duplicate zone error
+  // Same-name zones are allowed, except a private zone whose VPC already has a zone of that name
+  // (seeded internal.mycompany.com, vpc-0a1b2c3d4e5f67890 in ap-south-1, the form's default region).
   await page.goto(`${BASE}/hosted-zones/create`);
-  await page.getByLabel("Domain name").fill("e2e-test.dev");
+  await page.getByLabel("Domain name").fill("internal.mycompany.com");
+  await page.getByText("Private hosted zone", { exact: true }).click();
+  await page.getByPlaceholder("vpc-0a1b2c3d4e5f67890").fill("vpc-0a1b2c3d4e5f67890");
   await page.getByRole("button", { name: "Create hosted zone" }).click();
-  await page.getByText(/already exists/).filter({ visible: true }).first().waitFor();
-  check(true, "Duplicate zone shows API error in form");
+  await page.getByText(/is already associated with private hosted zone/).filter({ visible: true }).first().waitFor();
+  check(true, "Conflicting private zone shows API error in form");
 
   // --- Edit hosted zone (modal)
   await page.goto(zoneUrl);
@@ -371,6 +374,7 @@ function check(cond, msg) {
     const zonesFilter = () => page.getByPlaceholder("Filter hosted zones by name, ID or description").filter({ visible: true }).first();
     await page.goto(`${BASE}/hosted-zones`);
     await zonesFilter().fill("company");
+    await page.waitForURL((u) => u.searchParams.get("search") === "company");
     await page.getByRole("button", { name: /All hosted zone types/ }).filter({ visible: true }).first().click();
     await page.getByRole("option", { name: "Private" }).click();
     await page.waitForURL((u) => u.searchParams.get("search") === "company" && u.searchParams.get("type") === "private");
@@ -411,6 +415,8 @@ function check(cond, msg) {
     const recFilter = () => page.getByPlaceholder("Filter records by property or value").filter({ visible: true }).first();
     await page.goto(`${BASE}/hosted-zones/${com.id}`);
     await recFilter().fill("mail");
+    // Let the debounced search settle first, or its re-render can swallow the option click.
+    await page.waitForURL((u) => u.searchParams.get("search") === "mail");
     await page.getByRole("button", { name: /Type: All/ }).filter({ visible: true }).first().click();
     await page.getByRole("option", { name: "A", exact: true }).click();
     await page.waitForURL((u) => u.searchParams.get("search") === "mail" && u.searchParams.get("type") === "A");

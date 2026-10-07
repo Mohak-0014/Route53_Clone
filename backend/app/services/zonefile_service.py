@@ -1,12 +1,17 @@
 """BIND zone-file import/export and JSON export (bonus features)."""
-import re
 import shlex
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import HostedZone, ResourceRecordSet
-from app.services.validators import SUPPORTED_RECORD_TYPES, normalize_domain, validate_value
+from app.services.validators import (
+    SUPPORTED_RECORD_TYPES,
+    is_valid_domain,
+    normalize_domain,
+    parse_ttl,
+    validate_value,
+)
 from app.schemas.change import ChangeInfo
 from app.services import change_service
 from app.services.zone_service import get_zone
@@ -124,13 +129,21 @@ def import_bind(
         except ValueError:
             errors.append(f"Line {lineno}: could not parse quoted text.")
             continue
-        if tokens[0].upper() == "$ORIGIN":
-            origin = normalize_domain(tokens[1])
+        directive = tokens[0].upper()
+        if directive == "$ORIGIN":
+            if len(tokens) < 2 or not is_valid_domain(tokens[1]):
+                errors.append(f"Line {lineno}: $ORIGIN needs a domain name, e.g. $ORIGIN {zone.name}.")
+                continue
+            origin = _qualify(tokens[1], origin)  # a relative $ORIGIN is appended to the current one
             continue
-        if tokens[0].upper() == "$TTL":
-            default_ttl = int(re.sub(r"\D", "", tokens[1]) or 300)
+        if directive == "$TTL":
+            parsed = parse_ttl(tokens[1]) if len(tokens) >= 2 else None
+            if parsed is None:
+                errors.append(f"Line {lineno}: $TTL needs a TTL in seconds or with units, e.g. $TTL 3600 or $TTL 1h.")
+                continue
+            default_ttl = parsed
             continue
-        if tokens[0].startswith("$"):
+        if directive.startswith("$"):
             continue
 
         if not starts_blank:
@@ -139,8 +152,9 @@ def import_bind(
         rtype = None
         while tokens:
             tok = tokens[0]
-            if tok.isdigit():
-                ttl = int(tokens.pop(0))
+            if (parsed := parse_ttl(tok)) is not None:
+                ttl = parsed
+                tokens.pop(0)
             elif tok.upper() in _CLASSES:
                 tokens.pop(0)
             else:

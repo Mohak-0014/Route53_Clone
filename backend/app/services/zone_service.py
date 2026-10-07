@@ -30,22 +30,34 @@ def _record_count_subquery():
     )
 
 
-def _apex_ns(db: Session, zone: HostedZone) -> list[str]:
-    rec = db.scalar(
-        select(ResourceRecordSet).where(
-            ResourceRecordSet.hosted_zone_id == zone.id,
-            ResourceRecordSet.name == zone.name,
+def _apex_ns(db: Session, zones: list[HostedZone]) -> dict[str, list[str]]:
+    """Apex NS values for several zones in one query (zone ID → name servers)."""
+    if not zones:
+        return {}
+    rows = db.scalars(
+        select(ResourceRecordSet)
+        .join(HostedZone, HostedZone.id == ResourceRecordSet.hosted_zone_id)
+        .where(
+            ResourceRecordSet.hosted_zone_id.in_([z.id for z in zones]),
+            ResourceRecordSet.name == HostedZone.name,
             ResourceRecordSet.record_type == "NS",
         )
     )
-    return rec.values if rec else []
+    return {r.hosted_zone_id: r.values for r in rows}
 
 
-def to_out(db: Session, zone: HostedZone, record_count: int | None = None) -> HostedZoneOut:
+def to_out(
+    db: Session,
+    zone: HostedZone,
+    record_count: int | None = None,
+    name_servers: list[str] | None = None,
+) -> HostedZoneOut:
     if record_count is None:
         record_count = db.scalar(
             select(func.count()).where(ResourceRecordSet.hosted_zone_id == zone.id)
         ) or 0
+    if name_servers is None:
+        name_servers = _apex_ns(db, [zone]).get(zone.id, [])
     return HostedZoneOut(
         id=zone.id,
         name=zone.name,
@@ -54,7 +66,7 @@ def to_out(db: Session, zone: HostedZone, record_count: int | None = None) -> Ho
         record_count=record_count,
         vpc_region=zone.vpc_region,
         vpc_id=zone.vpc_id,
-        name_servers=_apex_ns(db, zone),
+        name_servers=name_servers,
         created_at=zone.created_at,
         updated_at=zone.updated_at,
     )
@@ -86,7 +98,10 @@ def list_zones(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
-    return [to_out(db, zone, cnt) for zone, cnt in rows], total, total_pages
+    # Two queries per page (zones with counts, then all their name servers), not one per zone.
+    name_servers = _apex_ns(db, [zone for zone, _ in rows])
+    items = [to_out(db, zone, cnt, name_servers.get(zone.id, [])) for zone, cnt in rows]
+    return items, total, total_pages
 
 
 def get_zone(db: Session, zone_id: str) -> HostedZone:
@@ -97,14 +112,24 @@ def get_zone(db: Session, zone_id: str) -> HostedZone:
 
 
 def create_zone(db: Session, data: HostedZoneCreate) -> HostedZone:
-    existing = db.scalar(
-        select(HostedZone).where(HostedZone.name == data.name, HostedZone.zone_type == data.type)
-    )
-    if existing:
-        raise conflict(
-            "HostedZoneAlreadyExists",
-            f"A {data.type} hosted zone named {data.name} already exists ({existing.id}).",
+    # Route 53 allows several hosted zones with the same name; each gets its own ID and
+    # name servers. The exception: one VPC can't be associated with two private zones
+    # that have the same name.
+    if data.type == "private":
+        existing = db.scalar(
+            select(HostedZone).where(
+                HostedZone.name == data.name,
+                HostedZone.zone_type == "private",
+                HostedZone.vpc_id == data.vpc_id,
+                HostedZone.vpc_region == data.vpc_region,
+            )
         )
+        if existing:
+            raise conflict(
+                "ConflictingDomainExists",
+                f"VPC {data.vpc_id} ({data.vpc_region}) is already associated with private hosted zone "
+                f"{data.name} ({existing.id}). Choose a different VPC or domain name.",
+            )
 
     zone = HostedZone(
         name=data.name,

@@ -27,10 +27,48 @@ def test_private_zone_requires_vpc(client, auth):
     assert r.json()["type"] == "private"
 
 
-def test_duplicate_zone(client, auth, zone):
+def test_duplicate_public_zone_name_allowed(client, auth, zone):
+    # Route 53 allows several hosted zones with the same name, each with its own ID.
     r = client.post("/api/hosted-zones", json={"name": "test.example"}, headers=auth)
-    assert r.status_code == 409
-    assert r.json()["code"] == "HostedZoneAlreadyExists"
+    assert r.status_code == 201
+    assert r.json()["id"] != zone["id"]
+    names = [z["name"] for z in client.get("/api/hosted-zones?search=test.example", headers=auth).json()["items"]]
+    assert names == ["test.example", "test.example"]
+
+
+def test_private_zone_same_name_same_vpc_conflicts(client, auth):
+    body = {"name": "corp.internal.net", "type": "private", "vpc_region": "us-east-1", "vpc_id": "vpc-0abc1234"}
+    assert client.post("/api/hosted-zones", json=body, headers=auth).status_code == 201
+    r = client.post("/api/hosted-zones", json=body, headers=auth)
+    assert r.status_code == 409 and r.json()["code"] == "ConflictingDomainExists"
+    # A different VPC (or a public zone) with the same name is fine.
+    other_vpc = {**body, "vpc_id": "vpc-0def5678"}
+    assert client.post("/api/hosted-zones", json=other_vpc, headers=auth).status_code == 201
+    assert client.post("/api/hosted-zones", json={"name": "corp.internal.net"}, headers=auth).status_code == 201
+
+
+def test_zone_list_query_count_does_not_grow_with_zones(client, auth):
+    from sqlalchemy import event
+
+    from app.database import engine
+
+    def count_list_queries() -> int:
+        statements = []
+        listener = lambda *args: statements.append(args[2])  # noqa: E731
+        event.listen(engine, "before_cursor_execute", listener)
+        try:
+            client.get("/api/hosted-zones?page_size=100", headers=auth)
+        finally:
+            event.remove(engine, "before_cursor_execute", listener)
+        return len(statements)
+
+    client.post("/api/hosted-zones", json={"name": "q1.example"}, headers=auth)
+    few = count_list_queries()
+    for i in range(10):
+        client.post("/api/hosted-zones", json={"name": f"q{i + 2}.example"}, headers=auth)
+    assert count_list_queries() == few
+    items = client.get("/api/hosted-zones?search=q1", headers=auth).json()["items"]
+    assert all(len(z["name_servers"]) == 4 for z in items)
 
 
 def test_list_search_pagination(client, auth):

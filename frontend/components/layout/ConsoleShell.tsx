@@ -15,6 +15,7 @@ import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
 import { TopNav } from "./TopNav";
 
 const HEADER_ID = "r53-top-nav";
+const SPLIT_PANEL_DEFAULT_WIDTH = 360;
 
 /** The AWS console frame: top navigation, side navigation, breadcrumbs, flashbar and split panel. */
 export function ConsoleShell({ children }: { children: React.ReactNode }) {
@@ -24,6 +25,9 @@ export function ConsoleShell({ children }: { children: React.ReactNode }) {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbGroupProps.Item[]>([]);
   const [splitPanel, setSplitPanelState] = useState<SplitPanelConfig | null>(null);
   const [splitPanelOpen, setSplitPanelOpen] = useState(true);
+  // Record details are short key/value pairs; a narrow default leaves room for the page's
+  // header actions and table columns. The panel can still be dragged wider.
+  const [splitPanelSize, setSplitPanelSize] = useState(SPLIT_PANEL_DEFAULT_WIDTH);
   const [navOpen, setNavOpen] = useState(true);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
@@ -87,6 +91,8 @@ export function ConsoleShell({ children }: { children: React.ReactNode }) {
         }
         splitPanelOpen={!!splitPanel && splitPanelOpen}
         onSplitPanelToggle={({ detail }) => setSplitPanelOpen(detail.open)}
+        splitPanelSize={splitPanelSize}
+        onSplitPanelResize={({ detail }) => setSplitPanelSize(detail.size)}
         splitPanelPreferences={{ position: "side" }}
         content={children}
       />

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Alert from "@cloudscape-design/components/alert";
 import Box from "@cloudscape-design/components/box";
 import Button from "@cloudscape-design/components/button";
-import ButtonDropdown from "@cloudscape-design/components/button-dropdown";
 import ContentLayout from "@cloudscape-design/components/content-layout";
 import CopyToClipboard from "@cloudscape-design/components/copy-to-clipboard";
 import ExpandableSection from "@cloudscape-design/components/expandable-section";
@@ -17,14 +16,14 @@ import Tabs from "@cloudscape-design/components/tabs";
 import { ChangeHistory } from "@/components/hosted-zones/ChangeHistory";
 import { DeleteZoneModal } from "@/components/hosted-zones/DeleteZoneModal";
 import { EditZoneModal } from "@/components/hosted-zones/EditZoneModal";
+import { ExportZoneButton } from "@/components/hosted-zones/ExportZoneButton";
 import { useBreadcrumbs } from "@/components/layout/ShellContext";
-import { useNotifications } from "@/components/providers/NotificationsProvider";
 import { RecordsTable } from "@/components/records/RecordsTable";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useFollow } from "@/hooks/useFollow";
 import { useWriteAccess } from "@/hooks/useWriteAccess";
-import { api, errorMessage } from "@/lib/api";
-import { downloadFile, formatDate } from "@/lib/format";
+import { api } from "@/lib/api";
+import { formatDate } from "@/lib/format";
 import type { HostedZone } from "@/types";
 
 export default function HostedZoneDetailPage({ params }: { params: Promise<{ zoneId: string }> }) {
@@ -32,7 +31,6 @@ export default function HostedZoneDetailPage({ params }: { params: Promise<{ zon
   const router = useRouter();
   const follow = useFollow();
   const { readOnly, deniedReason } = useWriteAccess();
-  const { notify } = useNotifications();
   const { data: zone, error, loading, reload } = useApiQuery(() => api.zones.get(zoneId), [zoneId]);
   const [editing, setEditing] = useState<HostedZone | null>(null);
   const [deleting, setDeleting] = useState<HostedZone | null>(null);
@@ -43,21 +41,6 @@ export default function HostedZoneDetailPage({ params }: { params: Promise<{ zon
     { text: "Hosted zones", href: "/hosted-zones" },
     { text: zone?.name ?? zoneId, href: `/hosted-zones/${zoneId}` },
   ]);
-
-  const exportZone = async (format: "bind" | "json") => {
-    if (!zone) return;
-    try {
-      if (format === "bind") {
-        downloadFile(`${zone.name}.zone`, await api.zones.exportBind(zone.id), "text/plain");
-      } else {
-        const json = await api.zones.exportJson(zone.id);
-        downloadFile(`${zone.name}.json`, JSON.stringify(json, null, 2), "application/json");
-      }
-      notify({ type: "success", content: `Exported ${zone.name} as ${format === "bind" ? "a BIND zone file" : "JSON"}.` });
-    } catch (e) {
-      notify({ type: "error", header: "Export failed", content: errorMessage(e) });
-    }
-  };
 
   if (!zone) {
     if (loading) {
@@ -104,18 +87,7 @@ export default function HostedZoneDetailPage({ params }: { params: Promise<{ zon
               >
                 Configure query logging
               </Button>
-              <ButtonDropdown
-                items={[
-                  { id: "bind", text: "BIND zone file" },
-                  { id: "json", text: "JSON" },
-                ]}
-                onItemClick={({ detail }) => exportZone(detail.id as "bind" | "json")}
-              >
-                Export zone
-              </ButtonDropdown>
-              <Button onClick={() => setEditing(zone)} disabled={readOnly} disabledReason={deniedReason}>
-                Edit hosted zone
-              </Button>
+              <ExportZoneButton zone={zone} />
             </SpaceBetween>
           }
         >

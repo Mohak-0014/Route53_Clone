@@ -47,9 +47,10 @@ All 22 screenshots are in [`docs/screenshots/`](docs/screenshots).
 **Hosted zones**
 - Table with Route 53's columns: name, type, created by, record count, description, hosted zone ID
 - Server-side search (name, ID or description), type filter (public/private), pagination
-- Preferences: page size and visible columns
+- Preferences: page size and visible columns (visible columns are remembered per browser)
 - Create page with public/private tiles (private zones take a VPC region + VPC ID)
 - Every new zone automatically gets apex **NS** (4 name servers) and **SOA** records, like Route 53
+- Several zones may share a name, as in Route 53 (each has its own ID and name servers); only a private zone whose VPC already has a private zone of that name is rejected (`409 ConflictingDomainExists`)
 - Edit description (Route 53 only allows changing the description)
 - Delete with type-`delete`-to-confirm modal; blocked while the zone has records other than its default NS/SOA (Route 53's `HostedZoneNotEmpty` rule)
 - Detail page: collapsible "Hosted zone details", name servers, copy-able zone ID and ARN (`arn:aws:route53:::hostedzone/<id>`), tabs
@@ -57,11 +58,11 @@ All 22 screenshots are in [`docs/screenshots/`](docs/screenshots).
 
 **DNS records** — `A, AAAA, CAA, CNAME, MX, NS, PTR, SRV, TXT` (+ the default SOA)
 - Records table with Route 53's columns (name, type, routing policy, differentiator, alias, value, TTL …)
-- Server-side search by name **or value**, type filter, pagination, column/page-size preferences
+- Server-side search by name **or value**, type filter, pagination, column/page-size preferences (columns remembered per browser)
 - Safe concurrent edits: if someone else saved the record after you opened it, saving shows a conflict with **Reload latest** instead of overwriting their change
 - Multi-select; selecting one record opens the **Record details split panel** (with *Edit record*, as in Route 53)
 - Create / edit pages modelled on Route 53's "Quick create record": name with zone suffix, type selector with descriptions, multi-line values, TTL with 1m/1h/1d presets, and **Add another record** to create several records in one atomic batch
-- Type-aware validation on both client and server (IPv4/IPv6, hostnames, `priority host` for MX, `priority weight port target` for SRV, `flags tag "value"` for CAA, quoted TXT strings ≤255 chars)
+- Type-aware validation on both client and server (IPv4/IPv6, hostnames, `priority host` for MX, `priority weight port target` for SRV, `flags tag "value"` for CAA, quoted TXT strings ≤255 chars); host names in CNAME, NS, PTR, MX and SRV values are stored lowercase without the trailing dot
 - Route 53 rules: no duplicate name+type, CNAME can't coexist with other records or sit at the apex, apex SOA/NS can't be deleted or retyped
 - Delete one or many records with a confirmation modal
 
@@ -77,7 +78,7 @@ All 22 screenshots are in [`docs/screenshots/`](docs/screenshots).
 - Mocked sections (Dashboard, Health checks, Profiles, Traffic policies, Resolver, …) show a "Coming soon" page
 
 **Bonus features**
-- ✅ Import records from a **BIND zone file** (paste or upload; handles `$ORIGIN`, `$TTL`, `@`, relative names, multi-line SOA, comments)
+- ✅ Import records from a **BIND zone file** (paste or upload; handles `$ORIGIN` (absolute or relative), `$TTL`, TTLs in seconds or BIND units such as `1h`, `1d` or `1h30m`, `@`, relative names, multi-line SOA, comments; malformed lines are reported per line and the rest is imported)
 - ✅ Export a hosted zone as **BIND** or **JSON** (Route 53 API-shaped)
 - ✅ **Dark mode** (Settings menu in the top bar, remembered per browser)
 - ✅ **Keyboard shortcuts** (press `?` or *Settings → Keyboard shortcuts* for the list):
@@ -257,7 +258,7 @@ Errors always look like `{ "code": "...", "message": "..." }`, using Route 53 er
 | 401 | `InvalidCredentials`, `Unauthenticated` |
 | 403 | `AccessDenied` (read-only IAM user on a write endpoint) |
 | 404 | `NoSuchHostedZone`, `NoSuchRecord`, `NoSuchChange` |
-| 409 | `HostedZoneAlreadyExists`, `RecordAlreadyExists`, `CNAMEConflict`, `ConcurrentModification` |
+| 409 | `ConflictingDomainExists`, `RecordAlreadyExists`, `CNAMEConflict`, `ConcurrentModification` |
 | 422 | `InvalidInput` (schema validation; includes an `errors` list) |
 | 500 | `InternalError` (details logged server-side only) |
 
@@ -308,13 +309,15 @@ Production build: `npm run build && npm start`.
 
 ### Tests
 ```bash
-# Backend: 85 API tests (auth, IAM roles, CRUD, every record type, validation, conflicts, batches, search, pagination,
-#          import/export, Test record resolution rules, optimistic locking + migration, change history)
+# Backend: 100 API tests (auth, IAM roles, CRUD, every record type, validation, conflicts, batches, search, pagination,
+#          zone-file import (TTL units, directives), import/export, Test record resolution rules, optimistic locking + migration, change history)
 cd backend && pip install -r requirements-dev.txt && pytest -q
 
 # End-to-end browser test (66 checks across the whole UI). Needs both servers running on a fresh DB.
 cd e2e && npm install && npx playwright install chromium && npm test
 ```
+
+**CI.** GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every pull request: backend tests; frontend typecheck, lint and production build; then the end-to-end suite against a freshly seeded API and the production frontend (screenshots and server logs are uploaded if it fails).
 
 ---
 

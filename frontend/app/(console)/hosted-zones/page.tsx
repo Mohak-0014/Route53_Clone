@@ -16,6 +16,7 @@ import { TableEmptyState } from "@/components/common/TableStates";
 import { DeleteZoneModal } from "@/components/hosted-zones/DeleteZoneModal";
 import { EditZoneModal } from "@/components/hosted-zones/EditZoneModal";
 import { useBreadcrumbs } from "@/components/layout/ShellContext";
+import { useColumnPreferences } from "@/hooks/useColumnPreferences";
 import { useFollow } from "@/hooks/useFollow";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useServerCollection } from "@/hooks/useServerCollection";
@@ -31,6 +32,7 @@ const TYPE_OPTIONS: SelectProps.Option[] = [
 
 const PAGE_SIZES = [10, 25, 50];
 const ZONE_TYPES = ["public", "private"] as const;
+const ZONE_COLUMNS = ["name", "type", "createdBy", "recordCount", "description", "id"];
 
 export default function HostedZonesPage() {
   return (
@@ -49,9 +51,7 @@ function HostedZones() {
     { text: "Hosted zones", href: "/hosted-zones" },
   ]);
 
-  const [visibleColumns, setVisibleColumns] = useState<readonly string[]>([
-    "name", "type", "createdBy", "recordCount", "description", "id",
-  ]);
+  const [visibleColumns, setVisibleColumns] = useColumnPreferences("hosted-zones", ZONE_COLUMNS, ZONE_COLUMNS);
   const [editing, setEditing] = useState<HostedZone | null>(null);
   const [deleting, setDeleting] = useState<HostedZone | null>(null);
 

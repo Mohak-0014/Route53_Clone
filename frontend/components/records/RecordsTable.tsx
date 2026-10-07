@@ -14,6 +14,7 @@ import Table, { TableProps } from "@cloudscape-design/components/table";
 import TextFilter from "@cloudscape-design/components/text-filter";
 import { TableEmptyState } from "@/components/common/TableStates";
 import { useShell } from "@/components/layout/ShellContext";
+import { useColumnPreferences } from "@/hooks/useColumnPreferences";
 import { useFollow } from "@/hooks/useFollow";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useServerCollection } from "@/hooks/useServerCollection";
@@ -33,13 +34,16 @@ const TYPE_OPTIONS: SelectProps.Option[] = [
 const PAGE_SIZES = [10, 25, 50, 100];
 // Differentiator is always "-" with simple routing, so it starts hidden (available in Preferences).
 const DEFAULT_COLUMNS = ["name", "type", "routing", "alias", "value", "ttl"];
+const ALL_COLUMNS = [
+  "name", "type", "routing", "differentiator", "alias", "value", "ttl", "healthCheck", "evaluate", "recordId",
+];
 
 export function RecordsTable({ zone, onChanged }: { zone: HostedZone; onChanged: () => void }) {
   const router = useRouter();
   const follow = useFollow();
   const { setSplitPanel } = useShell();
   const { readOnly, deniedReason } = useWriteAccess();
-  const [visibleColumns, setVisibleColumns] = useState<readonly string[]>(DEFAULT_COLUMNS);
+  const [visibleColumns, setVisibleColumns] = useColumnPreferences("records", ALL_COLUMNS, DEFAULT_COLUMNS);
   const [deleting, setDeleting] = useState<DnsRecord[]>([]);
   const [importing, setImporting] = useState(false);
 

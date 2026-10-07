@@ -54,11 +54,32 @@ def resolve_record_name(raw: str, zone_name: str) -> str:
     return fqdn
 
 
+MAX_TTL = 2147483647
+_TTL_UNITS = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+_TTL_RE = re.compile(r"^(?:\d+[smhdw])+$")
+
+
+def parse_ttl(token: str) -> int | None:
+    """Parse a BIND TTL: plain seconds ("3600") or unit form ("1h", "1h30m", "2W").
+
+    Returns None if the token isn't a TTL or is outside Route 53's 0..2147483647 range.
+    """
+    t = token.strip().lower()
+    if t.isdigit():
+        seconds = int(t)
+    elif _TTL_RE.match(t):
+        seconds = sum(int(n) * _TTL_UNITS[u] for n, u in re.findall(r"(\d+)([smhdw])", t))
+    else:
+        return None
+    return seconds if seconds <= MAX_TTL else None
+
+
 def _hostname(value: str, what: str) -> str:
+    """Validate a host name value and store it in canonical form: lowercase, no trailing dot."""
     v = value.strip()
     if not is_valid_domain(v):
         raise ValueError(f"{what} '{value}' is not a valid domain name.")
-    return v
+    return normalize_domain(v)
 
 
 def _int_in(value: str, low: int, high: int, what: str) -> int:
@@ -107,8 +128,7 @@ def validate_value(record_type: str, value: str) -> str:
         if len(parts) != 2:
             raise ValueError("MX values use the format 'priority mail-server', e.g. 10 mail.example.com.")
         _int_in(parts[0], 0, 65535, "MX priority")
-        _hostname(parts[1], "Mail server")
-        return f"{int(parts[0])} {parts[1]}"
+        return f"{int(parts[0])} {_hostname(parts[1], 'Mail server')}"
     if t == "SRV":
         parts = v.split()
         if len(parts) != 4:
@@ -119,8 +139,8 @@ def validate_value(record_type: str, value: str) -> str:
         _int_in(parts[0], 0, 65535, "SRV priority")
         _int_in(parts[1], 0, 65535, "SRV weight")
         _int_in(parts[2], 0, 65535, "SRV port")
-        _hostname(parts[3], "SRV target")
-        return " ".join(str(int(p)) for p in parts[:3]) + " " + parts[3]
+        target = _hostname(parts[3], "SRV target")
+        return " ".join(str(int(p)) for p in parts[:3]) + " " + target
     if t == "CAA":
         m = re.match(r'^(\d+)\s+([A-Za-z0-9]+)\s+(".*")$', v)
         if not m:

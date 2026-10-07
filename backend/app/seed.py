@@ -1,17 +1,18 @@
 """Database initialization and demo data.
 
-Runs on startup: creates tables if they don't exist, ensures the demo user exists,
-and seeds sample hosted zones only when the zones table is empty — so user changes
-are never overwritten on restart.
+Runs on startup: applies schema migrations (Alembic, "upgrade head"), ensures the demo
+users exist, and seeds sample hosted zones only when the zones table is empty — so user
+changes are never overwritten on restart.
 
 Run manually to reset everything:  python -m app.seed --reset
 """
 import sys
 
-from sqlalchemy import Engine, func, select, text
+from sqlalchemy import func, select
 
 from app.config import settings
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
+from app.db_migrations import reset_database, upgrade_database
 from app.models import HostedZone, User
 from app.schemas.hosted_zone import HostedZoneCreate
 from app.schemas.record import RecordCreate
@@ -92,26 +93,8 @@ DEMO_ZONES: list[dict] = [
 ]
 
 
-# Columns added after the first release: (table, column, DDL). create_all only creates
-# missing tables, so existing database files get these through ALTER TABLE.
-_ADDED_COLUMNS = [
-    ("resource_record_sets", "version", "INTEGER NOT NULL DEFAULT 1"),
-    ("users", "role", "TEXT NOT NULL DEFAULT 'admin'"),
-]
-
-
-def migrate(bind: Engine) -> None:
-    """Idempotently add columns that older database files are missing."""
-    with bind.begin() as conn:
-        for table, column, ddl in _ADDED_COLUMNS:
-            existing = {row[1] for row in conn.execute(text(f"PRAGMA table_info({table})"))}
-            if existing and column not in existing:
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
-
-
 def init_db() -> None:
-    Base.metadata.create_all(bind=engine)
-    migrate(engine)
+    upgrade_database()
     with SessionLocal() as db:
         # Mock IAM users: an administrator and a read-only user in the same account.
         for username, password, role in (
@@ -140,6 +123,6 @@ def init_db() -> None:
 
 if __name__ == "__main__":
     if "--reset" in sys.argv:
-        Base.metadata.drop_all(bind=engine)
+        reset_database()
     init_db()
     print("Database initialized.")

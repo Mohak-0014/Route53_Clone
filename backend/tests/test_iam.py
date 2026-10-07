@@ -3,8 +3,8 @@ import pytest
 from sqlalchemy import create_engine, text
 
 from app.config import settings
-from app.database import Base, engine
-from app.seed import init_db, migrate
+from app.db_migrations import reset_database, upgrade_database
+from app.seed import init_db
 
 ACCOUNT = "123456789012"
 
@@ -88,22 +88,19 @@ def test_viewer_can_read_search_export_and_test(client, viewer, zone, record):
 
 def test_viewer_password_comes_from_settings(client, monkeypatch):
     monkeypatch.setattr(settings, "viewer_password", "s3cret-view")
-    Base.metadata.drop_all(bind=engine)
+    reset_database()
     init_db()
     assert client.post("/api/auth/login", json={"account_id": ACCOUNT, "username": "viewer", "password": "viewer1234"}).status_code == 401
     assert _login(client, "viewer", "s3cret-view")["user"]["role"] == "read_only"
 
 
-def test_migration_adds_role_to_existing_users(tmp_path):
-    old = create_engine(f"sqlite:///{tmp_path / 'old.db'}")
-    with old.begin() as conn:  # the users table before roles existed
-        conn.execute(text(
-            "CREATE TABLE users (id INTEGER PRIMARY KEY, account_id VARCHAR(12) NOT NULL, "
-            "username VARCHAR(64) NOT NULL UNIQUE, password_hash VARCHAR(256) NOT NULL, created_at DATETIME NOT NULL)"
-        ))
-        conn.execute(text("INSERT INTO users VALUES (1, '123456789012', 'demo', 'x', '2026-01-01')"))
-    migrate(old)
-    migrate(old)  # idempotent
+@pytest.mark.parametrize("kind", ["first_release", "pre_alembic"])
+def test_upgrade_adds_role_to_existing_users(legacy_db, kind):
+    url = legacy_db(kind)  # first_release: the users table before roles existed
+    upgrade_database(url)
+    upgrade_database(url)  # idempotent
+    old = create_engine(url)
     with old.connect() as conn:
-        assert conn.execute(text("SELECT role FROM users WHERE username = 'demo'")).scalar() == "admin"
+        roles = dict(conn.execute(text("SELECT username, role FROM users")).all())
     old.dispose()
+    assert roles == ({"demo": "admin", "viewer": "read_only"} if kind == "pre_alembic" else {"demo": "admin"})

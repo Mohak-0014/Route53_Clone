@@ -47,6 +47,30 @@ def test_private_zone_same_name_same_vpc_conflicts(client, auth):
     assert client.post("/api/hosted-zones", json={"name": "corp.internal.net"}, headers=auth).status_code == 201
 
 
+def test_private_zone_race_returns_conflicting_domain_exists(client, auth, monkeypatch):
+    """If another request creates the same private zone between the pre-check and the insert,
+    the partial unique index rejects the insert and the API still answers 409 ConflictingDomainExists."""
+    from app.services import zone_service
+
+    body = {"name": "race.internal.net", "type": "private", "vpc_region": "us-east-1", "vpc_id": "vpc-0abc1234"}
+    first = client.post("/api/hosted-zones", json=body, headers=auth).json()
+
+    real_check = zone_service._private_zone_conflict
+    calls = []
+
+    def check_misses_once(db, data):
+        calls.append(data.name)
+        return None if len(calls) == 1 else real_check(db, data)
+
+    monkeypatch.setattr(zone_service, "_private_zone_conflict", check_misses_once)
+    r = client.post("/api/hosted-zones", json=body, headers=auth)
+    assert len(calls) == 2  # the pre-check, then the lookup after the index rejected the insert
+    assert r.status_code == 409
+    assert r.json()["code"] == "ConflictingDomainExists" and first["id"] in r.json()["message"]
+    zones = client.get("/api/hosted-zones?search=race.internal", headers=auth).json()["items"]
+    assert [z["id"] for z in zones] == [first["id"]]
+
+
 def test_zone_list_query_count_does_not_grow_with_zones(client, auth):
     from sqlalchemy import event
 

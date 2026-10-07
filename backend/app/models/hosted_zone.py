@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import get_args
 
-from sqlalchemy import CheckConstraint, DateTime, String, Text
+from sqlalchemy import CheckConstraint, DateTime, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base, sql_in
@@ -18,6 +18,16 @@ class HostedZone(Base):
             "(zone_type = 'private' AND vpc_id IS NOT NULL AND vpc_region IS NOT NULL)"
             " OR (zone_type = 'public' AND vpc_id IS NULL AND vpc_region IS NULL)",
             name="ck_hosted_zones_vpc",
+        ),
+        # Zone names may repeat (as in Route 53), but one VPC can't be associated with two private
+        # zones of the same name. Enforced here so concurrent creates can't both succeed.
+        Index(
+            "uq_hosted_zones_private_name_vpc",
+            "name",
+            "vpc_id",
+            "vpc_region",
+            unique=True,
+            sqlite_where=text("zone_type = 'private'"),
         ),
     )
 

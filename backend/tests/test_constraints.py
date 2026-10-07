@@ -67,3 +67,24 @@ def test_valid_rows_are_accepted(raw):
 def test_check_constraint_rejects_bad_row(raw, sql):
     with pytest.raises(IntegrityError, match="CHECK constraint failed"):
         raw.execute(text(sql))
+
+
+def _private(id, name="corp.example", vpc="'vpc-0abc1234'", region="'us-east-1'"):
+    return ZONE.replace("'example.com'", f"'{name}'").format(id=id, type="'private'", region=region, vpc=vpc)
+
+
+def test_partial_unique_index_rejects_a_second_private_zone_in_the_same_vpc(raw):
+    raw.execute(text(_private("ZP1")))
+    with pytest.raises(IntegrityError, match="UNIQUE constraint failed"):
+        raw.execute(text(_private("ZP2")))
+
+
+def test_partial_unique_index_allows_what_route_53_allows(raw):
+    raw.execute(text(_private("ZP1")))
+    raw.execute(text(_private("ZP2", vpc="'vpc-0def5678'")))  # same name, another VPC
+    raw.execute(text(_private("ZP3", region="'eu-west-1'")))  # same VPC ID, another region
+    raw.execute(text(_private("ZP4", name="other.example")))  # same VPC, another name
+    raw.execute(text(_zone("ZPUB2").replace("'example.com'", "'corp.example'")))  # public zone, same name
+    raw.execute(text(_zone("ZPUB3")))  # a second public example.com (ZOK is the first)
+    names = raw.execute(text("SELECT name FROM hosted_zones WHERE zone_type = 'public' AND name = 'example.com'")).all()
+    assert len(names) == 2

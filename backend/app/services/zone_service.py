@@ -4,6 +4,7 @@ import random
 import uuid
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError, conflict, not_found
@@ -111,25 +112,34 @@ def get_zone(db: Session, zone_id: str) -> HostedZone:
     return zone
 
 
+def _private_zone_conflict(db: Session, data: HostedZoneCreate) -> AppError | None:
+    """The error for a private zone whose VPC already has a private zone of the same name."""
+    if data.type != "private":
+        return None
+    existing = db.scalar(
+        select(HostedZone).where(
+            HostedZone.name == data.name,
+            HostedZone.zone_type == "private",
+            HostedZone.vpc_id == data.vpc_id,
+            HostedZone.vpc_region == data.vpc_region,
+        )
+    )
+    if existing is None:
+        return None
+    return conflict(
+        "ConflictingDomainExists",
+        f"VPC {data.vpc_id} ({data.vpc_region}) is already associated with private hosted zone "
+        f"{data.name} ({existing.id}). Choose a different VPC or domain name.",
+    )
+
+
 def create_zone(db: Session, data: HostedZoneCreate) -> HostedZone:
     # Route 53 allows several hosted zones with the same name; each gets its own ID and
     # name servers. The exception: one VPC can't be associated with two private zones
-    # that have the same name.
-    if data.type == "private":
-        existing = db.scalar(
-            select(HostedZone).where(
-                HostedZone.name == data.name,
-                HostedZone.zone_type == "private",
-                HostedZone.vpc_id == data.vpc_id,
-                HostedZone.vpc_region == data.vpc_region,
-            )
-        )
-        if existing:
-            raise conflict(
-                "ConflictingDomainExists",
-                f"VPC {data.vpc_id} ({data.vpc_region}) is already associated with private hosted zone "
-                f"{data.name} ({existing.id}). Choose a different VPC or domain name.",
-            )
+    # that have the same name. Checked first for a clear message; the database's partial
+    # unique index (uq_hosted_zones_private_name_vpc) decides if two requests race.
+    if error := _private_zone_conflict(db, data):
+        raise error
 
     zone = HostedZone(
         name=data.name,
@@ -140,7 +150,13 @@ def create_zone(db: Session, data: HostedZoneCreate) -> HostedZone:
         caller_reference=str(uuid.uuid4()),
     )
     db.add(zone)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        if error := _private_zone_conflict(db, data):  # another request created it first
+            raise error from exc
+        raise
 
     # Route 53 automatically creates the apex NS and SOA records for every new zone.
     ns = _default_name_servers()

@@ -1,0 +1,6 @@
+{
+  "name": "route53-clone-e2e",
+  "private": true,
+  "scripts": { "test": "node route53.e2e.js" },
+  "dependencies": { "playwright": "^1.55.0" }
+}

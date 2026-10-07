@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import AuthSession
-from app.routers.deps import get_current_session
+from app.routers.deps import get_current_session, require_write
 from app.schemas.change import ChangeResponse
 from app.schemas.common import Page
 from app.schemas.record import (
@@ -19,6 +19,9 @@ from app.schemas.record import (
     RecordUpdate,
 )
 from app.services import record_service, zonefile_service
+
+# Every record write is a Route 53 ChangeResourceRecordSets call; read-only users get AccessDenied.
+CHANGE_RECORDS = require_write("ChangeResourceRecordSets")
 
 router = APIRouter(
     prefix="/api/hosted-zones/{zone_id}/records",
@@ -47,7 +50,7 @@ def create_record(
     zone_id: str,
     body: RecordCreate,
     db: Session = Depends(get_db),
-    session: AuthSession = Depends(get_current_session),
+    session: AuthSession = Depends(CHANGE_RECORDS),
 ):
     record, change = record_service.create_record(db, zone_id, body, actor=session.user.username)
     return RecordChangeOut(**record.model_dump(), change=change)
@@ -59,7 +62,7 @@ def create_records_batch(
     zone_id: str,
     body: BatchCreateRequest,
     db: Session = Depends(get_db),
-    session: AuthSession = Depends(get_current_session),
+    session: AuthSession = Depends(CHANGE_RECORDS),
 ):
     """Create several records in one atomic change (the console's "Add another record")."""
     records, change = record_service.create_records(db, zone_id, body.records, actor=session.user.username)
@@ -71,7 +74,7 @@ def bulk_delete_records(
     zone_id: str,
     body: BulkDeleteRequest,
     db: Session = Depends(get_db),
-    session: AuthSession = Depends(get_current_session),
+    session: AuthSession = Depends(CHANGE_RECORDS),
 ):
     deleted, skipped, change = record_service.bulk_delete(
         db, zone_id, body.record_ids, actor=session.user.username
@@ -84,7 +87,7 @@ def import_zone_file(
     zone_id: str,
     body: ImportRequest,
     db: Session = Depends(get_db),
-    session: AuthSession = Depends(get_current_session),
+    session: AuthSession = Depends(CHANGE_RECORDS),
 ):
     created, skipped, errors, change = zonefile_service.import_bind(
         db, zone_id, body.zone_file, actor=session.user.username
@@ -104,7 +107,7 @@ def update_record(
     record_id: str,
     body: RecordUpdate,
     db: Session = Depends(get_db),
-    session: AuthSession = Depends(get_current_session),
+    session: AuthSession = Depends(CHANGE_RECORDS),
 ):
     record, change = record_service.update_record(db, zone_id, record_id, body, actor=session.user.username)
     return RecordChangeOut(**record.model_dump(), change=change)
@@ -115,7 +118,7 @@ def delete_record(
     zone_id: str,
     record_id: str,
     db: Session = Depends(get_db),
-    session: AuthSession = Depends(get_current_session),
+    session: AuthSession = Depends(CHANGE_RECORDS),
 ):
     change = record_service.delete_record(db, zone_id, record_id, actor=session.user.username)
     return ChangeResponse(change=change)

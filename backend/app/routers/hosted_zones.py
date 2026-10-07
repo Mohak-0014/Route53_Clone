@@ -5,7 +5,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.routers.deps import get_current_session
+from app.routers.deps import get_current_session, require_write
 from app.schemas.common import Page
 from app.schemas.dns_test import TestRecordRequest, TestRecordResult
 from app.schemas.hosted_zone import HostedZoneCreate, HostedZoneOut, HostedZoneUpdate
@@ -30,7 +30,12 @@ def list_hosted_zones(
     return Page(items=items, total=total, page=page, page_size=page_size, total_pages=total_pages)
 
 
-@router.post("", response_model=HostedZoneOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=HostedZoneOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_write("CreateHostedZone"))],
+)
 def create_hosted_zone(body: HostedZoneCreate, db: Session = Depends(get_db)):
     zone = zone_service.create_zone(db, body)
     return zone_service.to_out(db, zone)
@@ -41,12 +46,20 @@ def get_hosted_zone(zone_id: str, db: Session = Depends(get_db)):
     return zone_service.to_out(db, zone_service.get_zone(db, zone_id))
 
 
-@router.put("/{zone_id}", response_model=HostedZoneOut)
+@router.put(
+    "/{zone_id}",
+    response_model=HostedZoneOut,
+    dependencies=[Depends(require_write("UpdateHostedZoneComment"))],
+)
 def update_hosted_zone(zone_id: str, body: HostedZoneUpdate, db: Session = Depends(get_db)):
     return zone_service.to_out(db, zone_service.update_zone(db, zone_id, body))
 
 
-@router.delete("/{zone_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{zone_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_write("DeleteHostedZone"))],
+)
 def delete_hosted_zone(zone_id: str, db: Session = Depends(get_db)):
     zone_service.delete_zone(db, zone_id)
 

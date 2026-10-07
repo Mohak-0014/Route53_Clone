@@ -3,9 +3,12 @@ export type ZoneType = "public" | "private";
 export const RECORD_TYPES = ["A", "AAAA", "CAA", "CNAME", "MX", "NS", "PTR", "SRV", "TXT"] as const;
 export type RecordType = (typeof RECORD_TYPES)[number] | "SOA";
 
+export type UserRole = "admin" | "read_only";
+
 export interface User {
   username: string;
   account_id: string;
+  role: UserRole;
 }
 
 export interface SessionInfo {

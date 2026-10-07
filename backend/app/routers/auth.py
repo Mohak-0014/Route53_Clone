@@ -14,7 +14,7 @@ def _session_out(s: AuthSession) -> SessionOut:
     return SessionOut(
         token=s.token,
         expires_at=s.expires_at,
-        user=UserOut(username=s.user.username, account_id=s.user.account_id),
+        user=UserOut(username=s.user.username, account_id=s.user.account_id, role=s.user.role),
     )
 
 

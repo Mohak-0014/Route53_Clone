@@ -52,6 +52,15 @@ export const MOCK_SECTIONS: Record<string, { title: string; description: string 
     title: "DNS Firewall rule groups",
     description: "Filter and regulate outbound DNS traffic for your VPCs.",
   },
+  // Account menu (IAM, Organizations and Billing are mocked).
+  account: { title: "Account", description: "Contact information, alternate contacts and account settings." },
+  organization: { title: "Organization", description: "Manage the AWS accounts in your organization and their policies." },
+  "service-quotas": { title: "Service Quotas", description: "View and request increases for Route 53 quotas." },
+  billing: { title: "Billing and Cost Management", description: "Bills, payments, budgets and cost reports." },
+  "security-credentials": {
+    title: "Security credentials",
+    description: "Passwords, access keys and multi-factor authentication for your IAM user.",
+  },
 };
 
 const link = (text: string, href: string): SideNavigationProps.Link => ({ type: "link", text, href });

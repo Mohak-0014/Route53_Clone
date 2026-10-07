@@ -16,6 +16,8 @@ class User(Base):
     account_id: Mapped[str] = mapped_column(String(12), nullable=False)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    # "admin" can change zones and records; "read_only" can only view, search, export and test.
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="admin", server_default="admin")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
 
     sessions: Mapped[list["AuthSession"]] = relationship(

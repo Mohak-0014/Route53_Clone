@@ -96,6 +96,7 @@ DEMO_ZONES: list[dict] = [
 # missing tables, so existing database files get these through ALTER TABLE.
 _ADDED_COLUMNS = [
     ("resource_record_sets", "version", "INTEGER NOT NULL DEFAULT 1"),
+    ("users", "role", "TEXT NOT NULL DEFAULT 'admin'"),
 ]
 
 
@@ -112,15 +113,21 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     migrate(engine)
     with SessionLocal() as db:
-        if db.scalar(select(User).where(User.username == settings.demo_username)) is None:
-            db.add(
-                User(
-                    account_id=settings.demo_account_id,
-                    username=settings.demo_username,
-                    password_hash=hash_password(settings.demo_password),
+        # Mock IAM users: an administrator and a read-only user in the same account.
+        for username, password, role in (
+            (settings.demo_username, settings.demo_password, "admin"),
+            (settings.viewer_username, settings.viewer_password, "read_only"),
+        ):
+            if db.scalar(select(User).where(User.username == username)) is None:
+                db.add(
+                    User(
+                        account_id=settings.demo_account_id,
+                        username=username,
+                        password_hash=hash_password(password),
+                        role=role,
+                    )
                 )
-            )
-            db.commit()
+        db.commit()
 
         if settings.seed_demo_data and not db.scalar(select(func.count()).select_from(HostedZone)):
             for spec in DEMO_ZONES:

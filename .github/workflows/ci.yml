@@ -25,6 +25,12 @@ jobs:
           cache-dependency-path: backend/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
+      - name: Migrations match the models (alembic check)
+        env:
+          DATABASE_URL: sqlite:///${{ runner.temp }}/alembic-check.db
+        run: |
+          python -m alembic upgrade head
+          python -m alembic check
 
   frontend:
     name: Frontend typecheck, lint and build

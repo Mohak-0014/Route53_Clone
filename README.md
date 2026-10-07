@@ -137,13 +137,15 @@ UI uses **Cloudscape**, the open-source design system AWS uses for its own conso
 main.py          App factory, CORS, router registration, startup DB init
 config.py        Environment-driven settings
 database.py      Engine, session factory, SQLite foreign-key pragma
-models/          SQLAlchemy ORM models (User, AuthSession, HostedZone, ResourceRecordSet)
+db_migrations.py Alembic upgrade on startup, adoption of pre-Alembic database files, reset
+models/          SQLAlchemy ORM models (User, AuthSession, HostedZone, ResourceRecordSet, Change)
 schemas/         Pydantic request/response models (validation lives here)
 routers/         HTTP layer only: parse input, call service, shape response
 services/        Business rules: zones, records, auth, BIND import/export, value validators
 errors.py        Uniform {code, message} errors; DB errors never leak to the client
-seed.py          Table creation + demo data (only when the DB is empty)
+seed.py          Startup: migrate, ensure demo users, seed demo zones (only when the DB is empty)
 ```
+Migrations live in `backend/migrations/` (Alembic; `backend/alembic.ini`).
 
 ---
 
@@ -212,9 +214,20 @@ Design notes
 - **Change history.** Every record create, update, delete, bulk delete and zone-file import writes one `changes` row in the *same transaction* as the data change, so history can never disagree with the data. Status is derived, not stored: `PENDING` until `PROPAGATION_SECONDS` have passed since `submitted_at`, then `INSYNC`. Seed data and no-op requests (e.g. a bulk delete that deletes nothing) record no change. An index on `(hosted_zone_id, submitted_at)` serves the newest-first history query.
 - **Default records.** Each zone's apex NS and SOA rows are created with the zone and flagged `is_default` in responses; the service layer prevents deleting or retyping them.
 - **Optimistic locking.** `resource_record_sets.version` starts at 1 and is bumped on every update (SQLAlchemy `version_id_col`, which also adds `WHERE version = …` to the UPDATE). The edit page sends `expected_version`; a mismatch, or a write that lands between read and commit, returns `409 ConcurrentModification`. Requests without `expected_version` still work.
-- **Migrations.** `create_all` adds new tables; columns added later (`resource_record_sets.version`, `users.role`) are applied to existing database files by an idempotent startup migration in `seed.py` (`PRAGMA table_info` + `ALTER TABLE … ADD COLUMN`).
+- **Constraints in the database, not only in Python.** Named `CHECK` constraints back up the API's validation, so a bug or a manual edit can't store a value the API would reject: `ck_hosted_zones_zone_type` (`public`/`private`), `ck_hosted_zones_vpc` (private zones have a VPC ID and region, public zones have neither), `ck_resource_record_sets_record_type` (the nine supported types plus `SOA`), `ck_resource_record_sets_ttl` (0–2147483647), `ck_resource_record_sets_version` (≥ 1), `ck_users_role` (`admin`/`read_only`) and `ck_changes_action` (`CREATE`/`UPSERT`/`DELETE`/`IMPORT`). The models build them from the same constants the API validates with.
+- **Duplicate zone names.** As in Route 53, several zones may share a name. The one exception, a VPC with two private zones of the same name, is enforced by the partial unique index `uq_hosted_zones_private_name_vpc` on `(name, vpc_id, vpc_region) WHERE zone_type = 'private'`. The service checks first for a clear `409 ConflictingDomainExists`, and maps the index's error to the same response if two requests race.
+- **Migrations (Alembic).** The schema is defined by the models and versioned by revisions in `backend/migrations/versions/` (`0001` baseline, `0002` CHECK constraints, `0003` partial unique index). The API applies them on startup (`alembic upgrade head` inside `init_db()`), so the hosted backend migrates when it boots. SQLite can't add constraints with `ALTER TABLE`, so revisions use batch mode, which rebuilds the table; migrations run with foreign keys off (a rebuild must not cascade-delete rows), in one transaction, and fail if `PRAGMA foreign_key_check` reports problems. Database files from before Alembic (tables but no `alembic_version`) first get the baseline's columns and any missing tables, are recorded at `0001`, then upgraded, with all rows kept. To change the schema:
+  ```bash
+  cd backend
+  # 1. edit the models in app/models/
+  python -m alembic revision --autogenerate -m "describe the change" --rev-id 0004
+  # 2. review the generated file in migrations/versions/ (autogenerate does not detect CHECK
+  #    constraint or partial-index changes, so write those operations by hand)
+  python -m alembic upgrade head    # or just restart the API
+  python -m alembic check           # models and migrations agree (also run in CI and the tests)
+  ```
 - **IDs** look like Route 53's (`Z` + 20 chars for zones) and are what appear in URLs.
-- **Initialization.** `init_db()` runs on API startup: `create_all` builds tables, ensures the demo user exists, and seeds sample zones only if the zones table is empty — restarts never overwrite user data. `python -m app.seed --reset` rebuilds from scratch.
+- **Initialization.** `init_db()` runs on API startup: it applies migrations, ensures the demo users exist, and seeds sample zones only if the zones table is empty — restarts never overwrite user data. `python -m app.seed --reset` drops every table (including `alembic_version`) and rebuilds from scratch.
 
 ---
 
@@ -292,7 +305,7 @@ uvicorn app.main:app --reload --port 8000
 API at http://localhost:8000 · docs at http://localhost:8000/docs
 
 ### Database
-Nothing to do: on first start the API creates `backend/route53.db`, the demo user and six sample hosted zones (example.com, example.org, mycompany.com, shop-demo.net, a reverse-DNS zone and a private zone) with realistic records.
+Nothing to do: on first start the API creates `backend/route53.db`, applies the migrations (and upgrades an existing file, keeping its data), then creates the demo users and six sample hosted zones (example.com, example.org, mycompany.com, shop-demo.net, a reverse-DNS zone and a private zone) with realistic records.
 
 ```bash
 python -m app.seed --reset    # wipe and re-seed
@@ -309,15 +322,16 @@ Production build: `npm run build && npm start`.
 
 ### Tests
 ```bash
-# Backend: 100 API tests (auth, IAM roles, CRUD, every record type, validation, conflicts, batches, search, pagination,
-#          zone-file import (TTL units, directives), import/export, Test record resolution rules, optimistic locking + migration, change history)
+# Backend: 124 API tests (auth, IAM roles, CRUD, every record type, validation, conflicts, batches, search, pagination,
+#          zone-file import (TTL units, directives), import/export, Test record resolution rules, optimistic locking, change history, migrations (fresh and pre-Alembic files),
+#          CHECK constraints and the private-zone unique index, models vs. migrations)
 cd backend && pip install -r requirements-dev.txt && pytest -q
 
 # End-to-end browser test (66 checks across the whole UI). Needs both servers running on a fresh DB.
 cd e2e && npm install && npx playwright install chromium && npm test
 ```
 
-**CI.** GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every pull request: backend tests; frontend typecheck, lint and production build; then the end-to-end suite against a freshly seeded API and the production frontend (screenshots and server logs are uploaded if it fails).
+**CI.** GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every pull request: backend tests and `alembic check`; frontend typecheck, lint and production build; then the end-to-end suite against a freshly seeded API and the production frontend (screenshots and server logs are uploaded if it fails).
 
 ---
 

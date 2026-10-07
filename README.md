@@ -16,7 +16,7 @@ It does **not** run DNS. It recreates the console experience and Route 53's data
 
 [![Watch the 3-minute walkthrough](docs/walkthrough-thumbnail.png)](docs/walkthrough.mp4)
 
-A 3-minute tour of the console: sign-in, hosted zones, creating records in one batch with their change status, searching and editing records, Test record, change history, concurrent-edit protection, shareable URLs, keyboard shortcuts and the read-only IAM user. ([MP4, 5.8 MB](docs/walkthrough.mp4))
+A 3-minute tour of the console: sign-in, hosted zones, creating records in one batch with their change status, searching and editing records, Test record, change history, concurrent-edit protection, shareable URLs, keyboard shortcuts and the read-only IAM user. ([MP4, 5.7 MB](docs/walkthrough.mp4))
 
 ## Screenshots
 

@@ -10,7 +10,7 @@ It does **not** run DNS. It recreates the console experience and Route 53's data
 | **Backend** | FastAPI · Pydantic v2 · SQLAlchemy 2.0 |
 | **Database** | SQLite |
 | **Demo login** | Account ID `123456789012` · administrator `demo` / `demo1234` · read-only `viewer` / `viewer1234` |
-| **Live demo** | _add your Vercel URL here_ |
+| **Live demo** | **https://route53-clone-gilt-seven.vercel.app** · API docs: https://route53-clone-api-9vm3.onrender.com/docs (free tier: the first request after a quiet period can take ~50 s while the API wakes up) |
 
 ## Walkthrough video
 

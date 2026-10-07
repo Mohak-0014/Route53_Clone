@@ -8,8 +8,10 @@ import Flashbar from "@cloudscape-design/components/flashbar";
 import SideNavigation from "@cloudscape-design/components/side-navigation";
 import SplitPanel from "@cloudscape-design/components/split-panel";
 import { useNotifications } from "@/components/providers/NotificationsProvider";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { activeHref, NAV_ITEMS } from "@/lib/navigation";
 import { ShellContext, SplitPanelConfig } from "./ShellContext";
+import { KeyboardShortcutsModal } from "./KeyboardShortcutsModal";
 import { TopNav } from "./TopNav";
 
 const HEADER_ID = "r53-top-nav";
@@ -23,6 +25,13 @@ export function ConsoleShell({ children }: { children: React.ReactNode }) {
   const [splitPanel, setSplitPanelState] = useState<SplitPanelConfig | null>(null);
   const [splitPanelOpen, setSplitPanelOpen] = useState(true);
   const [navOpen, setNavOpen] = useState(true);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
+  // Console-wide shortcuts; pages register their own (create, refresh, edit, delete...).
+  useKeyboardShortcuts([
+    { key: "?", description: "Show keyboard shortcuts", handler: () => setShortcutsOpen(true) },
+    { key: "g h", description: "Go to Hosted zones", handler: () => router.push("/hosted-zones") },
+  ]);
 
   const setSplitPanel = useCallback((panel: SplitPanelConfig | null) => {
     setSplitPanelState(panel);
@@ -47,7 +56,7 @@ export function ConsoleShell({ children }: { children: React.ReactNode }) {
   return (
     <ShellContext.Provider value={ctx}>
       <div id={HEADER_ID} style={{ position: "sticky", top: 0, zIndex: 1002 }}>
-        <TopNav />
+        <TopNav onShowShortcuts={() => setShortcutsOpen(true)} />
       </div>
       <AppLayout
         headerSelector={`#${HEADER_ID}`}
@@ -81,6 +90,8 @@ export function ConsoleShell({ children }: { children: React.ReactNode }) {
         splitPanelPreferences={{ position: "side" }}
         content={children}
       />
+      {/* Mounted only while open: Cloudscape keeps a hidden modal's content in the DOM. */}
+      {shortcutsOpen && <KeyboardShortcutsModal visible onDismiss={() => setShortcutsOpen(false)} />}
     </ShellContext.Provider>
   );
 }

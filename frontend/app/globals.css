@@ -228,3 +228,20 @@ body {
   color: inherit !important;
   font-weight: 700;
 }
+
+/* Keyboard shortcuts dialog */
+.r53-shortcut-keys kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 6px;
+  border: 1px solid #b6bec9;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 600 12px/1.6 Monaco, Menlo, Consolas, monospace;
+  text-align: center;
+}
+
+.r53-shortcut-sep {
+  color: #5f6b7a;
+  font-size: 12px;
+}

@@ -34,7 +34,7 @@ function formatAccountId(id: string) {
   return id.length === 12 ? `${id.slice(0, 4)}-${id.slice(4, 8)}-${id.slice(8)}` : id;
 }
 
-export function TopNav() {
+export function TopNav({ onShowShortcuts }: { onShowShortcuts: () => void }) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const { notify } = useNotifications();
@@ -113,8 +113,11 @@ export function TopNav() {
               external: true,
               externalIconAriaLabel: " (opens in a new tab)",
             },
-            { id: "shortcuts", text: "Keyboard shortcuts: Alt+S search, / filter tables", disabled: true },
+            { id: "shortcuts", text: "Keyboard shortcuts" },
           ],
+          onItemClick: ({ detail }) => {
+            if (detail.id === "shortcuts") onShowShortcuts();
+          },
         },
         {
           type: "button",
@@ -130,12 +133,17 @@ export function TopNav() {
           title: "Settings",
           items: [
             {
+              id: "shortcuts",
+              text: "Keyboard shortcuts",
+            },
+            {
               id: "theme",
               text: mode === "dark" ? "Visual mode: Dark (switch to light)" : "Visual mode: Light (switch to dark)",
             },
           ],
           onItemClick: ({ detail }) => {
             if (detail.id === "theme") toggleMode();
+            if (detail.id === "shortcuts") onShowShortcuts();
           },
         },
         {

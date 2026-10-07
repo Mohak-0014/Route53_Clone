@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Page } from "@/types";
 import { useApiQuery } from "./useApiQuery";
+import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -163,18 +164,14 @@ export function useServerCollection<T extends { id: string }, F extends string>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  // Keyboard shortcut: "/" focuses the filter, like many AWS consoles.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      if (e.key === "/" && !e.altKey && !["INPUT", "TEXTAREA"].includes(tag)) {
-        e.preventDefault();
-        filterRef.current?.querySelector("input")?.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // "/" focuses the filter, like many AWS consoles.
+  useKeyboardShortcuts([
+    {
+      key: "/",
+      description: "Focus the table filter",
+      handler: () => filterRef.current?.querySelector("input")?.focus(),
+    },
+  ]);
 
   return {
     ...result,

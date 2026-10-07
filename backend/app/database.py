@@ -1,5 +1,5 @@
 """SQLAlchemy engine/session setup for SQLite."""
-from collections.abc import Generator
+from collections.abc import Generator, Iterable
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
@@ -24,6 +24,12 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 class Base(DeclarativeBase):
     pass
+
+
+def sql_in(column: str, values: Iterable[str]) -> str:
+    """SQL for a CHECK constraint limiting a column to fixed values: "col IN ('a', 'b')"."""
+    quoted = ", ".join("'" + v.replace("'", "''") + "'" for v in values)
+    return f"{column} IN ({quoted})"
 
 
 def get_db() -> Generator[Session, None, None]:

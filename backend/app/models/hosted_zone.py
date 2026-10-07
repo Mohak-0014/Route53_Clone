@@ -1,14 +1,25 @@
 from datetime import datetime
+from typing import get_args
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import CheckConstraint, DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import Base, sql_in
+from app.schemas.hosted_zone import ZoneType
 from app.utils import generate_id, utcnow
 
 
 class HostedZone(Base):
     __tablename__ = "hosted_zones"
+    __table_args__ = (
+        CheckConstraint(sql_in("zone_type", get_args(ZoneType)), name="ck_hosted_zones_zone_type"),
+        # Private zones are associated with a VPC; public zones never are.
+        CheckConstraint(
+            "(zone_type = 'private' AND vpc_id IS NOT NULL AND vpc_region IS NOT NULL)"
+            " OR (zone_type = 'public' AND vpc_id IS NULL AND vpc_region IS NULL)",
+            name="ck_hosted_zones_vpc",
+        ),
+    )
 
     # Route 53 style public identifier, e.g. "Z04123452ABCDEFGHIJKL"
     id: Mapped[str] = mapped_column(

@@ -2,11 +2,11 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.change import ChangeInfo
 from app.schemas.common import UTCDateTime
-from app.services.validators import SUPPORTED_RECORD_TYPES
+from app.services.validators import MAX_TTL, SUPPORTED_RECORD_TYPES
 
 
 class RecordBase(BaseModel):
-    ttl: int = Field(300, ge=0, le=2147483647)
+    ttl: int = Field(300, ge=0, le=MAX_TTL)
     values: list[str] = Field(..., min_length=1, max_length=100)
     comment: str = Field("", max_length=256)
 

@@ -1,10 +1,11 @@
 import json
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import Base, sql_in
+from app.services.validators import ALL_RECORD_TYPES, MAX_TTL
 from app.utils import generate_id, utcnow
 
 
@@ -18,6 +19,9 @@ class ResourceRecordSet(Base):
     __tablename__ = "resource_record_sets"
     __table_args__ = (
         UniqueConstraint("hosted_zone_id", "name", "record_type", name="uq_record_name_type"),
+        CheckConstraint(sql_in("record_type", ALL_RECORD_TYPES), name="ck_resource_record_sets_record_type"),
+        CheckConstraint(f"ttl BETWEEN 0 AND {MAX_TTL}", name="ck_resource_record_sets_ttl"),
+        CheckConstraint("version >= 1", name="ck_resource_record_sets_version"),
     )
 
     id: Mapped[str] = mapped_column(

@@ -1,9 +1,11 @@
 from datetime import datetime
+from typing import get_args
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import Base, sql_in
+from app.schemas.auth import Role
 from app.utils import utcnow
 
 
@@ -11,6 +13,7 @@ class User(Base):
     """A mocked IAM user. Only used to gate the console behind a login."""
 
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint(sql_in("role", get_args(Role)), name="ck_users_role"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     account_id: Mapped[str] = mapped_column(String(12), nullable=False)

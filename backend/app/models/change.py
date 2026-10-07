@@ -1,9 +1,11 @@
 from datetime import datetime
+from typing import get_args
 
-from sqlalchemy import DateTime, ForeignKey, Index, String
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database import Base
+from app.database import Base, sql_in
+from app.schemas.change import ChangeAction
 from app.utils import generate_id, utcnow
 
 
@@ -15,7 +17,10 @@ class Change(Base):
     """
 
     __tablename__ = "changes"
-    __table_args__ = (Index("ix_changes_zone_submitted", "hosted_zone_id", "submitted_at"),)
+    __table_args__ = (
+        Index("ix_changes_zone_submitted", "hosted_zone_id", "submitted_at"),
+        CheckConstraint(sql_in("action", get_args(ChangeAction)), name="ck_changes_action"),
+    )
 
     # Route 53 style identifier, e.g. "C2682N5HXP0BZ4EXAMPLE"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=lambda: generate_id("C", 20))
